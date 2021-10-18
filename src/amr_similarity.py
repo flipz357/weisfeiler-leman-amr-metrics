@@ -5,16 +5,16 @@ from scipy.stats import entropy
 from pyemd import emd_with_flow
 import gensim.downloader as api
 from copy import deepcopy
-import graph_helpers 
 import multiprocessing
 import re
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
 
 class GraphSimilarityPredictor():
 
-    def predict(self, amrs1, amrs2):
+    def predict(self, graphs_1, graphs_2):
         """predicts similarities for paired amrs
         Input are multi edge networkx Di-Graphs 
         """
@@ -23,15 +23,15 @@ class GraphSimilarityPredictor():
 
 class Preprocessor():
 
-    def transform(self, triples_1, triples_2):
-        """predicts similarities for paired amrs"""
+    def transform(self, graphs_1, graphs_2):
+        """preprocesses amr graphs"""
         pass
 
 
 class PreparablePreprocessor(Preprocessor):
 
-    def prepare(self, triples_1, triples_2):
-        """ prepare something on triple data, e.g. load embeds"""
+    def prepare(self, graphs_1, graphs_2):
+        """ prepare something on graph data, e.g. load embeds"""
         pass
  
 
@@ -61,7 +61,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         self.init = init
         self.param_keys = None
         self.params = None
-        self.unk_nodes = None
+        self.unk_nodes = {}
         if w2v_uri:
             try:
                 self.wordvecs = api.load(w2v_uri)
@@ -72,57 +72,31 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                         If this is desired, no need to worry.".format(w2v_uri))
         return None
 
-    def prepare(self, triples_1, triples_2):
+    def prepare(self, graphs_1, graphs_2):
         """initialize embedding of graph nodes and edges"""
         self.params_ready = False
-        _, _, _, _ = self.transform_return_node_map(triples_1, triples_2)
+        self._prepare(graphs_1, graphs_2)
         self.params_ready = True
         return None
 
-    def transform(self, triples_1, triples_2):
-        """transforms triple graphs to nx multi-edge-di graphs
-        
-        Args:
-            triples_1 (list): list with graph as triples
-            triples_2 (list): list with graph as triples
 
-        Returns:
-            nx multi-edge di graphs with embedded nodes
-        """
-
-        amrs1, amrs2, _, _ = self.transform_return_node_map(triples_1, triples_2)
-        return amrs1, amrs2
-
-    def transform_return_node_map(self, triples_1, triples_2):
-        """transforms triple graphs to nx multi-digraphs AND returns a map 
-            from graph nodes to original variable nodes of the AMR so 
-            that an alignment can be reconstructed
+    def transform(self, graphs1, graphs2):
+        """embeds nx multi-digraphs. I.e. assigns every 
+        node and edge attribute "latent" with a parameter
 
         Args:
-            triples_1 (list): list with graph as triples
-            triples_2 (list): list with graph as triples
+            graphs1 (list): list withnx medi graph
+            graphs2 (list): list with nx medi graph 
 
         Returns:
             nx multi-edge di graphs with embedded nodes, node map from
             graph nodes to original AMR variable nodes
         """
-        
-        def _simp_create_nx(triples):
-            # lossless simplification of graphs, and get maaping to original graph
-            triples_node2nodeorig = [graph_helpers.simplify_lossless(G) for G in triples]
-            triples = [x[0] for x in triples_node2nodeorig]
-            node2nodeorig = [x[1] for x in triples_node2nodeorig]
-            # build nx multi edge di graphs
-            amrs = [graph_helpers.nx_digraph_from_triples(G, label2attribute=True)[0] for G in triples]
-            return amrs, node2nodeorig
-        
-        amrs_1, node2nodeorig_1 = _simp_create_nx(triples_1)
-        amrs_2, node2nodeorig_2 = _simp_create_nx(triples_2)
-        
+          
         #gather embeddings for nodes and edges
-        self.embeds(amrs_1, amrs_2)
+        self.embeds(graphs1, graphs2)
 
-        return amrs_1, amrs_2, node2nodeorig_1, node2nodeorig_2
+        return None
      
     def embeds(self, gs1, gs2):
         """ embeds all graphs, i.e., assign embeddings to node labels 
@@ -136,37 +110,46 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
             None
         """
 
-        if not self.params_ready:
-            self.param_keys = {}
-            self.params = []
-            self.unk_nodes = {}
         for g in gs1:
             self.embed(g)
         for g in gs2:
             self.embed(g)
-        self.params = np.array(self.params)
-        return None
-     
-    def get_vec_deprecated(self, string):
-        """DEPRECATED""" 
-         
-        string  = string.split("-")[0]
-
-        # if the node is a negation node in AMR (indicated as '-', we assign
-        # the word vector for 'no')
-        if not string:
-            string = "no"
-
-        # further cleaning
-        string = string.split("###")[0].strip()
-        string = string.replace("\"", "").replace("'", "")
-        string = string.lower()
-
-        #lookup
-        if string in self.wordvecs:
-            return np.copy(self.wordvecs[string])
         return None
     
+    def embed(self, G):
+
+        #get unknown nodes 
+        label_no_vec = set()
+        label_vec = {}
+        for node in G:
+            label = G.nodes[node]["label"]
+            if label in self.unk_nodes:
+                label_vec[label] = self.unk_nodes[label]
+                continue
+            vec = self.get_vec(label)
+            if vec is None:
+                label_no_vec.add(label)
+            else:
+                label_vec[label] = vec
+        
+        #get vecs for new unknown nodes and update
+        rand_vecs = np.random.rand(len(label_no_vec), self.dim)
+        for i, label in enumerate(label_no_vec):
+            vec = rand_vecs[i]
+            self.unk_nodes[label] = vec
+            label_vec[label] = vec
+        
+        #set node latent
+        def _make_latent(graph):
+            for node in graph.nodes:
+                label = graph.nodes[node]["label"]
+                graph.nodes[node]["latent"] = label_vec[label]
+            return None
+
+        _make_latent(G)
+
+        return None
+      
     def get_vec(self, string):
         """lookup a vector for a string
         
@@ -176,16 +159,14 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         Returns: 
             n-dimensional numpy vector
         """ 
-        
         string = string.strip()
 
         # if the node is a negation node in AMR (indicated as '-', we assign
-        # the word vector for 'no')
+        # random vec)
         if string == "-":
-            string = "no"
+            return None
 
         # further cleaning
-        string = string.split("###")[0].strip()
         string = string.replace("\"", "").replace("'", "")
         string = string.lower()
 
@@ -201,86 +182,88 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
             return np.max(vecs, axis=0)
 
         return None
-    
-    def embed(self, G):
-        """in-place manipulation of nx medi graph 
-        by assigning embeddings to edges and nodes. 
-        This fucntion also initializes/updates/gathers 'global' edge parameters
-        
+
+    def _prepare(self, graphs1, graphs2):
+        """Prepares the edge label parameters.
+
         Args:
-            G (nx medi graph): an nx multi edge directed graph
+            graphs1 (list with nx medi graphs): a list with graphs
+            graphs2 (list with nx medi graphs): a list with graphs
 
         Returns:
             None
         """
 
-        label_vec = {}
-        label_no_vec = set()
-        def _maybe_link_labels_vecs(graph):
-            for node in graph:
-                label = graph.nodes[node]["label"]
-                vec = self.get_vec(label)
-                if vec is not None:
-                    label_vec[label] = vec
-                else:
-                    label_no_vec.add(label)
-            for (n1, n2, _) in graph.edges:
-                edat = graph.get_edge_data(n1, n2)
-                for k in edat:
-                    label = edat[k]["label"]
-                    label_no_vec.add(label)
-            return None
-        
-        _maybe_link_labels_vecs(G)
-        
-        def _handle_unks():
-        
-            for la in label_no_vec:
-                if la[0] == ":":    
-                    if la not in self.param_keys:
-                        if not self.params_ready:
-                            if self.relation_type == "scalar":
-                                if self.init == "random_uniform":
-                                    self.params.append(np.random.uniform(0.0, 1, size=(1)))
-                                
-                                elif self.init == "min_entropy": 
-                                    sample = []
-                                    for _ in range(10):
-                                        sample.append(np.random.uniform(0.0, 1, size=(1)))
-                                    entropies = []
-                                    for i in range(10):
-                                        entropies.append(
-                                                entropy(np.array(np.array(self.params).flatten() 
-                                                            + list(sample[i])).flatten()))
-                                    argmin = np.argmin(entropies)
-                                    self.params.append(sample[argmin])
-                                
-                            if self.relation_type == "vector":
-                                self.params.append(np.random.rand(self.dim))
-                            if self.relation_type == "matrix":
-                                self.params.append(np.random.rand(self.dim, self.dim))
-                            self.param_keys[la] = len(self.params) - 1
-                else:
-                    if la not in self.unk_nodes:
-                        if not self.params_ready:
-                            self.unk_nodes[la] = np.random.rand(self.dim)
-                    if la in self.unk_nodes:
-                        label_vec[la] = self.unk_nodes[la]
-                    else:
-                        label_vec[la] = np.random.rand(self.dim)
-            return None
-
-        _handle_unks()
-        
-        def _make_latent(graph):
-            for node in graph.nodes:
-                label = graph.nodes[node]["label"]
-                graph.nodes[node]["latent"] = label_vec[label]
-            return None
-
-        _make_latent(G)
-        
+        es = [self.get_edge_labels(g) for g in graphs1]
+        es += [self.get_edge_labels(g) for g in graphs2]
+        edge_labels = []
+        dic = {}
+        for el in es:
+            for label in el:
+                if label not in dic:
+                    edge_labels.append(label)
+                    dic[label] = True
+        #edge_labels = Counter(alles).most_common()
+        #edge_labels = [x for x, count in edge_labels]
+        param = self.sample_edge_label_param(n=len(edge_labels))
+        self.params = param
+        self.param_keys = {edge_labels[idx]:idx for idx in range(len(edge_labels))}
         return None
+
+    def get_edge_labels(self, G):
+        """Retrieve all edge labels from a graph
+
+        Args:
+            G (nx medi graph): nx multi edge dir. graph
+        Returns:
+            list with edge labels
+        """
+
+        out = []
+        for (n1, n2, _) in G.edges:
+            edat = G.get_edge_data(n1, n2)
+            for k in edat:
+                label = edat[k]["label"]
+                out.append(label)
+        return out
+
+    def sample_edge_label_param(self, n=1):
+        """initialize edge parameters. 
+        
+        The idea with min entropy 
+        is to better be able distinguish between edges. This helps with 
+        label discirmintation in ARG tasks (but slightly reduces performance
+        in other tasks, for other tasks similar or learnt edge weights may 
+        be better)
+
+        Args:
+            n (int): how many parameters are needed?
+        
+        Returns:
+            array with parameters
+        """
+        
+        params = []
+        
+        if self.init == "random_uniform":
+            for _ in range(n):
+                params.append(np.random.uniform(0.25, 0.35, size=(1)))
+        
+        elif self.init == "min_entropy": 
+            for _ in range(n):
+                sample = []
+                for _ in range(10):
+                    sample.append(np.random.uniform(0.0, 1, size=(1)))
+                entropies = []
+                for i in range(10):
+                    entropies.append(
+                            entropy(np.array(np.array(params).flatten() 
+                                        + list(sample[i])).flatten()))
+                argmin = np.argmin(entropies)
+                params.append(sample[argmin])
+        
+        return np.array(params)
+            
 
 class AmrWasserPredictor(GraphSimilarityPredictor):
 
@@ -291,7 +274,9 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         self.param_keys = param_keys
         if param_keys is None:
             self.param_keys = {}
-        self.unk_edge = np.random.rand(self.params.shape[1]) 
+            self.unk_edge = 0.33
+        else:
+            self.unk_edge = np.random.rand(self.params.shape[1]) 
         self.iters = iters
         return None
   
@@ -504,8 +489,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         """safe retrieval of an edge parameter"""
         if label not in self.param_keys:
             return self.unk_edge
-        else:
-            return self.params[self.param_keys[label]]
+        return self.params[self.param_keys[label]]
 
     def _communicate(self, G, node):
         """In-place contextualization of a node with neighborhood
@@ -622,28 +606,6 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         return g_embed1, g_embed2
 
 
-class AmrSymbolicPreprocessor(Preprocessor):
-
-    def transform(self, triples_1, triples_2):
-        """ builds multi edge nx digraphs from graphs as triples
-        
-        Args: 
-            triples1 (list): list with graphs
-            triples2 (list): list with graphs
-
-        Returns:
-            two lists with multi edge nx digraphs
-        """
-        
-        amrs1 = [graph_helpers.simplify_lossless(G)[0] for G in triples_1]
-        amrs1 = [graph_helpers.nx_digraph_from_triples(G)[0] for G in amrs1]
-        amrs2 = [graph_helpers.simplify_lossless(G)[0] for G in triples_2]
-        amrs2 = [graph_helpers.nx_digraph_from_triples(G)[0] for G in amrs2]
-        assert len(amrs2) == len(amrs1)
-        
-        return amrs1, amrs2
-
-
 class AmrSymbolicPredictor(GraphSimilarityPredictor):
     
     def __init__(self, simfun='cosine', iters=2):
@@ -664,12 +626,12 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         kvs = []
         for i, a1 in enumerate(amrs1):
             a2 = amrs2[i]
-            gs1 = self.get_stats(a1, a2, stattype='nodecount')
-            gs2 = self.get_stats(a1, a2, stattype='triplecount')
+            gs1 = self.get_stats(a1, a2, stattype='nodeoccurence')
+            gs2 = self.get_stats(a1, a2, stattype='tripleoccurence')
             v1, v2 = gs1[0], gs1[1]
             v1, v2 = np.concatenate([v1, gs2[0]]), np.concatenate([v2, gs2[1]])
             kv = self.wlk(a1, a2, iters=self.iters, kt=self.simfun, init_vecs=(v1, v2), 
-                            weighting="linear", stattype="nodecount")
+                            weighting="linear", stattype="nodeoccurence")
             if np.isnan(kv):
                 kv = 0.0
             kvs.append(kv)
@@ -686,17 +648,19 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             a list with edge+label from neighbors
         """
         
-        newn = [node]
+        newn = [G.nodes[node]["label"]]
 
         for nb in G.neighbors(node):
             for k in G.get_edge_data(node, nb):
                 el = G.get_edge_data(node, nb)[k]['label']
-                newn.append(el + '_' + nb)
+                label = G.nodes[nb]["label"]
+                newn.append(el + '_' + label)
         
         for nb in G.predecessors(node):
             for k in G.get_edge_data(nb, node):
                 el = G.get_edge_data(nb, node)[k]['label']
-                newn.append(el + '_' + nb)
+                label = G.nodes[nb]["label"]
+                newn.append(el + '_' + label)
         
         return newn
     
@@ -711,8 +675,9 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         """
 
         dic = {}
-        for n in G.nodes:
-            dic[n] = self.wl_gather_node(n, G)
+        for node in G.nodes:
+            label = G.nodes[node]["label"]
+            dic[label] = self.wl_gather_node(node, G)
         return dic
     
     def sort_relabel(self, dic1, dic2):
@@ -733,26 +698,7 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             dic2[node] = ' ::: '.join(list(sorted(dic2[node])))
 
         return dic1, dic2
-    
-    def get_triples_with_new_nodes(self, nxg, nn_dict):
-        """construct new graph triples with new nodes
-
-        Args:
-            nxg (nx medi graph): graph
-            nn_dict (dict): node->node dict
-
-        Returns:
-            triples with new nodes
-        """
-
-        newtr = []
-        triples = graph_helpers.nx_digraph_to_triples(nxg)
-        for s, e, t in triples:
-            sbar = nn_dict[s]
-            tbar = nn_dict[t]
-            newtr.append((sbar, e, tbar))
-        return newtr
- 
+     
     def wlk(self, nx_g1, nx_g2, iters=2, weighting='linear', kt='dot', 
             stattype='nodecount', init_vecs=(None, None)):
         """compute WL kernel similarity of graph A and B
@@ -814,10 +760,11 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         v2s = []
         vocabs = []
         for _ in range(iters):
-            x1, x2, nx_g1, nx_g2, vocab = self.wl_iter(nx_g1, nx_g2, stattype=stattype)
+            x1, x2, vocab = self.wl_iter(nx_g1, nx_g2, stattype=stattype)
             v1s.append(x1)
             v2s.append(x2)
             vocabs.append(vocab)
+        #print(v1s, v2s, vocabs)
         return v1s, v2s, vocabs
 
     def wl_iter(self, nx_g1, nx_g2, stattype='nodecount'):
@@ -835,12 +782,18 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         dic_g1 = self.wl_gather_nodes(nx_g1)
         dic_g2 = self.wl_gather_nodes(nx_g2)
         d1, d2 = self.sort_relabel(dic_g1, dic_g2)
-        newtriples1 = self.get_triples_with_new_nodes(nx_g1, d1)
-        newtriples2 = self.get_triples_with_new_nodes(nx_g2, d2)
-        newg1, _ = graph_helpers.nx_digraph_from_triples(newtriples1)
-        newg2, _ = graph_helpers.nx_digraph_from_triples(newtriples2)
-        stats1, stats2, vocab = self.get_stats(newg1, newg2, stattype=stattype)
-        return stats1, stats2, newg1, newg2, vocab
+        self.update_node_labels(nx_g1, d1)
+        self.update_node_labels(nx_g2, d2)
+        stats1, stats2, vocab = self.get_stats(nx_g1, nx_g2, stattype=stattype)
+        return stats1, stats2, vocab
+
+    def update_node_labels(self, G, dic):
+        for node in G.nodes:
+            label = G.nodes[node]["label"]
+            G.nodes[node]["label"] = dic[label]
+        return None
+
+
     
     def get_stats(self, g1, g2, stattype='nodecount'):
         """get feature vec for a statistitic type
@@ -855,11 +808,24 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             - vector for B
             - vocab
         """
-
+        
+        vec1, vec2, vocab = None, None, None
         if stattype == 'nodecount':
-            return self.nc(g1, g2)
+            vec1, vec2, vocab =  self.nc(g1, g2)
+        if stattype == 'nodeoccurence':
+            v1, v2, voc = self.nc(g1, g2)
+            v1[v1>1] = 1
+            v2[v2>1] = 1
+            vec1, vec2, vocab =  v1, v2, voc
         if stattype == 'triplecount':
-            return self.tc(g1, g2)
+            vec1, vec2, vocab = self.tc(g1, g2)
+        if stattype == 'tripleoccurence':
+            v1, v2, voc = self.tc(g1, g2)
+            v1[v1>1] = 1
+            v2[v2>1] = 1
+            vec1, vec2, vocab =  v1, v2, voc
+        
+        return vec1, vec2, vocab
     
     def create_fea_vec(self, items, vocab):
         """create freture vector from bow list and vocab
@@ -875,6 +841,7 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         vec = np.zeros(len(vocab))
         for item in items:
             vec[vocab[item]] += 1
+        #print(items)
         return vec
 
     def nc(self, g1, g2):
@@ -893,14 +860,16 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         g1bow = []
         g2bow = []
         for node in g1.nodes:
-            g1bow.append(node)
-            if node not in vocab:
-                vocab[node] = i
+            label = g1.nodes[node]["label"]
+            g1bow.append(label)
+            if label not in vocab:
+                vocab[label] = i
                 i += 1
         for node in g2.nodes:
-            g2bow.append(node)
-            if node not in vocab:
-                vocab[node] = i
+            label = g2.nodes[node]["label"]
+            g2bow.append(label)
+            if label not in vocab:
+                vocab[label] = i
                 i += 1
 
         vec1 = self.create_fea_vec(g1bow, vocab)
@@ -925,9 +894,9 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         for node in g1.nodes:
             for nb in g1.neighbors(node):
                 for k in g1.get_edge_data(node, nb):
-                    el = node
+                    el = g1.nodes[node]["label"]
                     el += '_' + g1.get_edge_data(node, nb)[k]['label'] 
-                    el += '_' + nb
+                    el += '_' + g1.nodes[nb]["label"]
                     g1bow.append(el)
                     if el not in vocab:
                         vocab[el] = i
@@ -935,9 +904,9 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         for node in g2.nodes:
             for nb in g2.neighbors(node):
                 for k in g2.get_edge_data(node, nb):
-                    el = node 
+                    el = g2.nodes[node]["label"]
                     el += '_' + g2.get_edge_data(node, nb)[k]['label'] 
-                    el += '_' + nb
+                    el += '_' + g2.nodes[nb]["label"]
                     g2bow.append(el)
                     if el not in vocab:
                         vocab[el] = i
@@ -945,5 +914,7 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
  
         vec1 = self.create_fea_vec(g1bow, vocab)
         vec2 = self.create_fea_vec(g2bow, vocab)
-
+        vec1 = vec1
+        vec2 = vec2
+        #print(g1bow, g2bow)
         return vec1, vec2, vocab

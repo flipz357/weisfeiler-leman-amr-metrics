@@ -45,19 +45,21 @@ if __name__ == "__main__":
     amrfile1 = args.a
     amrfile2 = args.b
     
+
     amrs_in1 = dh.read_amr_file(amrfile1)
     amrs1 = [gh.stringamr2graph(s) for s in amrs_in1]
     triples1 = [gh.graph2triples(G) for G in amrs1]
-
+    graphs1 = [gh.amrtriples2nxmedigraph(tx, True) for tx in triples1]
+    graphs1 = [elm[0] for elm in graphs1]
     amrs_in2 = dh.read_amr_file(amrfile2)
     amrs2 = [gh.stringamr2graph(s) for s in amrs_in2]
     triples2 = [gh.graph2triples(G) for G in amrs2]
-    
-    pp = amrsim.AmrSymbolicPreprocessor()
-    amrs1, amrs2 = pp.transform(triples1, triples2)
+    graphs2 = [gh.amrtriples2nxmedigraph(tx, True) for tx in triples2]
+    graphs2 = [elm[0] for elm in graphs2]
+
     predictor = amrsim.AmrSymbolicPredictor(iters=args.k)
 
-    preds = predictor.predict(amrs1, amrs2)
+    preds = predictor.predict(graphs1, graphs2)
 
     print("\n".join(str(pr) for pr in preds))
 
