@@ -69,17 +69,12 @@ if __name__ == "__main__":
     amrfile1 = args.a
     amrfile2 = args.b
     
-    amrs_in1 = dh.read_amr_file(amrfile1)
-    amrs1 = [gh.stringamr2graph(s) for s in amrs_in1]
-    triples1 = [gh.graph2triples(G) for G in amrs1]
-    graphs1 = [gh.amrtriples2nxmedigraph(tx) for tx in triples1]
-    graphs1 = [elm[0] for elm in graphs1]
-    amrs_in2 = dh.read_amr_file(amrfile2)
-    amrs2 = [gh.stringamr2graph(s) for s in amrs_in2]
-    triples2 = [gh.graph2triples(G) for G in amrs2]
-    graphs2 = [gh.amrtriples2nxmedigraph(tx) for tx in triples2]
-    graphs2 = [elm[0] for elm in graphs2]
-    
+    string_amrs1 = dh.read_amr_file(amrfile1)
+    graphs1, _ = gh.parse_string_amrs(string_amrs1)
+
+    string_amrs2 = dh.read_amr_file(amrfile2)
+    graphs2, _ = gh.parse_string_amrs(string_amrs2) 
+
     predss = []
     for _ in range(args.ensemble_n):
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)

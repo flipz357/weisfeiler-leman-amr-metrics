@@ -4,6 +4,32 @@ import networkx as nx
 import penman
 logger = logging.getLogger("penman")
 logger.setLevel(30)
+import data_helpers as dh
+
+
+def parse_string_amrs(string_penman_amrs, add_coref_info_to_labels=False):
+    """builds nx medi graphs from amr sembank.
+    
+    Args:
+        string_penman_amrs (list): contains AMR graphs, i.e.
+                                ["(x / ... :a (...))"], "(..."]
+
+        add_coref_to_labels (bool): if true then add (redundant) 
+                                    coref info to node labels (default: False)
+
+    Returns:
+        - list with nx multi edge di graph where nodes are ids and nodes and 
+            labels carry attribute
+        - list with dicts that contain node id --> original AMR variable mappings
+    """
+    
+    amrs = [stringamr2graph(s) for s in string_penman_amrs]
+    triples = [graph2triples(G) for G in amrs]
+    graphs_nm = [amrtriples2nxmedigraph(tx, add_coref_info_to_labels) for tx in triples]
+    graphs = [elm[0] for elm in graphs_nm]
+    node_map = [elm[1] for elm in graphs_nm]
+
+    return graphs, node_map
 
 
 def amrtriples2nxmedigraph(triples, add_coref_info_to_labels=False):

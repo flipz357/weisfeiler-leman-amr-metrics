@@ -482,7 +482,8 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         labels = []
         for node in nx_latent.nodes:
             vecs.append(nx_latent.nodes[node]["latent"])
-            labels.append(nx_latent.nodes[node]["label"])
+            #labels.append(nx_latent.nodes[node]["label"])
+            labels.append(node)
         return np.array(vecs), labels
 
     def maybe_has_param(self, label):

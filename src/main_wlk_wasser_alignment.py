@@ -56,23 +56,22 @@ if __name__ == "__main__":
     amrfile1 = args.a
     amrfile2 = args.b
     
-    amrs_in1 = dh.read_amr_file(amrfile1)
-    amrs1 = [gh.stringamr2graph(s) for s in amrs_in1]
-    triples1 = [gh.graph2triples(G) for G in amrs1]
-
-    amrs_in2 = dh.read_amr_file(amrfile2)
-    amrs2 = [gh.stringamr2graph(s) for s in amrs_in2]
-    triples2 = [gh.graph2triples(G) for G in amrs2]
+    string_amrs1 = dh.read_amr_file(amrfile1)
+    graphs1, node_map1 = gh.parse_string_amrs(string_amrs1)
+    
+    string_amrs2 = dh.read_amr_file(amrfile2)
+    graphs2, node_map2 = gh.parse_string_amrs(string_amrs2)
+    
 
     prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri)
-    prepro.prepare(triples1, triples2)
+    prepro.prepare(graphs1, graphs2)
     
-    amrs1, amrs2, nodemap1, nodemap2 = prepro.transform_return_node_map(triples1, triples2)
+    prepro.transform(graphs1, graphs2)
     predictor = amrsim.AmrWasserPredictor(params=prepro.params
                                             , param_keys=prepro.param_keys
                                             , iters=args.k)
 
-    preds, align = predictor.predict_and_align(amrs1, amrs2, nodemap1, nodemap2)
+    preds, align = predictor.predict_and_align(graphs1, graphs2, node_map1, node_map2)
     
     outdict = {"preds":preds, "align":align}
     print(outdict)

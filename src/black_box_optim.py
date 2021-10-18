@@ -7,25 +7,24 @@ logger = logging.getLogger(__name__)
 
 class SPSA:
 
-    def __init__(self, triples1, triples2, predictor, targets
-                , triples1_dev=None, triples2_dev=None, targets_dev=None
+    def __init__(self, train_graphs_a, train_graphs_b, predictor, targets
+                , dev_graphs_a=None, dev_graphs_b=None, targets_dev=None
                 , init_lr=0.75, A=2, alpha=0.5, gamma=0.05, c=0.01
                 , eval_steps=100, n_batch=4, check_every_n_batch=350):
 
         # predictor must have predict and set_params and get_params
         self.predictor = predictor
         self.targets = targets
-        self.triples1 = triples1
-        self.triples2 = triples2
+        self.train_graphs_a = train_graphs_a
+        self.train_graphs_b = train_graphs_b
+        self.dev_graphs_a = dev_graphs_a
+        self.dev_graphs_b = dev_graphs_b
+        self.targets_dev = targets_dev
 
-        if not triples1_dev:
-            self.triples1_dev = self.triples1
-            self.triples2_dev = self.triples2
+        if not dev_graphs_a:
+            self.dev_graphs_a = self.train_graphs_a
+            self.dev_graphs_b = self.train_graphs_b
             self.targets_dev = self.targets
-        else:
-            self.triples1_dev = triples1_dev
-            self.triples2_dev = triples2_dev
-            self.targets_dev = targets_dev
          
         self.init_lr = init_lr
         self.A = A
@@ -70,8 +69,8 @@ class SPSA:
             estimated gradient
         """
 
-        in_1 = [self.triples1[i] for i in ids]
-        in_2 = [self.triples2[i] for i in ids]
+        in_1 = [self.train_graphs_a[i] for i in ids]
+        in_2 = [self.train_graphs_b[i] for i in ids]
         
         self.predictor.set_params(x + c * rand)
         a = self.predictor.predict(in_1, in_2) 
@@ -98,8 +97,8 @@ class SPSA:
         logger.debug("parameter shape  {}".format(param_shape))
         
         prstart = pearsonr(self.targets_dev
-                , self.predictor.predict(self.triples1_dev
-                , self.triples2_dev, parallel=True))[0]
+                , self.predictor.predict(self.dev_graphs_a
+                , self.dev_graphs_b, parallel=True))[0]
         
         logger.info("start pearsonr {}".format(prstart))
         
@@ -111,7 +110,7 @@ class SPSA:
         best_params = self.predictor.get_params().copy()
         while True:
             # sample mini batch ids
-            i = np.random.randint(0, len(self.triples1), size=self.n_batch) 
+            i = np.random.randint(0, len(self.train_graphs_a), size=self.n_batch) 
             
             # sample from bernoulli
             rand = np.random.randint(0, 2, size=param_shape)
@@ -156,8 +155,8 @@ class SPSA:
                 logger.info("conducting evaluation step {}; \
                         processed examples={}; \
                         systime={}".format(eval_steps_done, iters * self.n_batch, time.time()))
-                dev_preds = self.predictor.predict(self.triples1_dev
-                                                    , self.triples2_dev
+                dev_preds = self.predictor.predict(self.dev_graphs_a
+                                                    , self.dev_graphs_b
                                                     , parallel=True)
                 pr = pearsonr(self.targets_dev, dev_preds)
                 pr = pr[0]
