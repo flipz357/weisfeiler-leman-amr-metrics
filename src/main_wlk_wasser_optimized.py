@@ -91,19 +91,9 @@ if __name__ == "__main__":
     
     amrfile1_test = args.a_test
     amrfile2_test = args.b_test
-    """
-    amrs_in1 = dh.read_amr_file(amrfile1)
-    amrs1 = [gh.stringamr2graph(s) for s in amrs_in1]
-    triples1 = [gh.graph2triples(G) for G in amrs1]
+    
+    #################
 
-    amrs_in2 = dh.read_amr_file(amrfile2)
-    amrs2 = [gh.stringamr2graph(s) for s in amrs_in2]
-    triples2 = [gh.graph2triples(G) for G in amrs2]
-      
-    prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri)
-    prepro.prepare(triples1, triples2)
-    amrs1, amrs2 = prepro.transform(triples1, triples2)
-    """
     string_amrs1_train = dh.read_amr_file(amrfile1_train)
     graphs1_train, node_map1_train = gh.parse_string_amrs(string_amrs1_train)
 
@@ -114,6 +104,8 @@ if __name__ == "__main__":
     prepro.prepare(graphs1_train, graphs2_train)
     prepro.transform(graphs1_train, graphs2_train)
     
+    ################
+
     string_amrs1_dev = dh.read_amr_file(amrfile1_dev)
     graphs1_dev, node_map1_dev = gh.parse_string_amrs(string_amrs1_dev)
 
@@ -122,7 +114,8 @@ if __name__ == "__main__":
     
     prepro.transform(graphs1_dev, graphs2_dev)
     
-    
+    ################
+
     string_amrs1_test = dh.read_amr_file(amrfile1_test)
     graphs1_test, node_map1_test = gh.parse_string_amrs(string_amrs1_test)
 
@@ -131,29 +124,8 @@ if __name__ == "__main__":
     
     prepro.transform(graphs1_test, graphs2_test)
     
-    """
-    predictor = amrsim.AmrWasserPredictor(params=prepro.params, param_keys=prepro.param_keys, iters=args.k) 
-    
-    amrs_in1_dev = dh.read_amr_file(amrfile1_dev)
-    amrs1_dev = [gh.stringamr2graph(s) for s in amrs_in1_dev]
-    triples1_dev = [gh.graph2triples(G) for G in amrs1_dev]
-    
-    amrs_in2_dev = dh.read_amr_file(amrfile2_dev)
-    amrs2_dev = [gh.stringamr2graph(s) for s in amrs_in2_dev]
-    triples2_dev = [gh.graph2triples(G) for G in amrs2_dev]
-    
-    amrs1_dev, amrs2_dev = prepro.transform(triples1_dev, triples2_dev)
+    ################
 
-    amrs_in1_test = dh.read_amr_file(amrfile1_test)
-    amrs1_test = [gh.stringamr2graph(s) for s in amrs_in1_test]
-    triples1_test = [gh.graph2triples(G) for G in amrs1_test]
-    
-    amrs_in2_test = dh.read_amr_file(amrfile2_test)
-    amrs2_test = [gh.stringamr2graph(s) for s in amrs_in2_test]
-    triples2_test = [gh.graph2triples(G) for G in amrs2_test]
-    
-    amrs1_test, amrs2_test = prepro.transform(triples1_test, triples2_test)
-    """
     predictor = amrsim.AmrWasserPredictor(params=prepro.params, param_keys=prepro.param_keys, iters=args.k) 
     
     # if training and dev targets not exists then it is role confusion 
