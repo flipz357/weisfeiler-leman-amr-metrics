@@ -4,7 +4,6 @@ import networkx as nx
 import penman
 logger = logging.getLogger("penman")
 logger.setLevel(30)
-import data_helpers as dh
 
 
 def parse_string_amrs(string_penman_amrs, add_coref_info_to_labels=False):
