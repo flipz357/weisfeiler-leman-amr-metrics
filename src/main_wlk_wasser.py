@@ -49,7 +49,7 @@ def build_arg_parser():
     
     parser.add_argument('--corpus_score'
             , action='store_true'
-            , help='output only average score over sentences')
+            , help='output only average score over amrs')
 
     return parser
 
@@ -76,7 +76,9 @@ if __name__ == "__main__":
     graphs2, _ = gh.parse_string_amrs(string_amrs2) 
 
     predss = []
+    
     for _ in range(args.ensemble_n):
+        
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
         prepro.prepare(graphs1, graphs2)
 
@@ -86,9 +88,11 @@ if __name__ == "__main__":
                                                 , iters=args.k)
         preds = predictor.predict(graphs1, graphs2)
         predss.append(preds)
-    predss = np.mean(predss, axis=0)
+    
+    preds = np.mean(predss, axis=0)
+    
     if args.corpus_score:
-        print(np.mean(predss))
+        print(np.mean(np.mean(predss, axis=1)))
     else:
-        print("\n".join(str(pr) for pr in predss))
+        print("\n".join(str(pr) for pr in preds))
 

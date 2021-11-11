@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 
 def build_arg_parser():
 
@@ -26,6 +27,10 @@ def build_arg_parser():
             , nargs='?'
             , default=2
             , help='number of WL iterations')
+    
+    parser.add_argument('--corpus_score'
+            , action='store_true'
+            , help='output only average score over amrs')
 
     return parser
 
@@ -54,6 +59,9 @@ if __name__ == "__main__":
     predictor = amrsim.AmrSymbolicPredictor(iters=args.k)
 
     preds = predictor.predict(graphs1, graphs2)
-
-    print("\n".join(str(pr) for pr in preds))
+    
+    if args.corpus_score:
+        print(np.mean(preds))
+    else:
+        print("\n".join(str(pr) for pr in preds))
 

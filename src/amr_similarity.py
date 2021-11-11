@@ -305,7 +305,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         #concat
         E1 = np.concatenate([e1, E1], axis=1)
         E2 = np.concatenate([e2, E2], axis=1)
-       
+        
         # get wmd input
         v1, v2, dists = self.get_wmd_input(E1, E2)
 

@@ -30,6 +30,9 @@ cd src
 python main_wlk_wasser_alignment.py -a <amr_file> -b <amr_file>
 ```
 
+Note that the node labels will get initialized with GloVe vectors, 
+it can take a minute to load them. If everything should be randomly intitialzed 
+(no loading time), set `-w2v_uri none`.
 
 ### Learning edge parameters for control
 
@@ -55,18 +58,20 @@ python main_wlk.py -a <amr_file> -b <amr_file>
 
 ## Tips
 
-### Handle randomness in Wasserstein WLK
+### Parsing evaluation
 
-In current Wasserstein WLK edges (and words not in GloVe) are initialized randomly, 
-which can lead to some variation in the predictions. If more stable results are desired 
-(e.g., for parsing evaluation), consider using setting fixed edge weights 
-or use an ensemble average score with high n, e.g.:
+Currently, only `main_wlk.py`, i.e., the symbolic WLK provides deterministic results.
+Since in current Wasserstein WLK the edges and words not in GloVe are initialized randomly, 
+it can lead to some variation in the predictions. If more stable results for WWLK are desired
+, consider setting fixed edge weights or use an ensemble average score with, e.g.:
 
 ```
 cd src
 python main_wlk_wasser.py -a <amr_parse_file> -b <amr_gold_file> \
-                                    -n_ensemble 50 --corpus_score
+                                    -n_ensemble 5 --corpus_score
 ```
+
+This solution will be quite slow, however, maybe there are better ones.
 
 ### More Arguments
 
@@ -76,7 +81,7 @@ you can check the options out:
 
 ```
 cd src
-python main_wlk_wasser_alignment.py --help
+python main_wlk_wasser.py --help
 ```
 
 ## Version notes
