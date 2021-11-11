@@ -18,21 +18,21 @@ penman (tested 1.1.0)
 
 ### Basic Wasserstein AMR similarity
 
+Note that the node labels will get initialized with GloVe vectors, 
+it can take a minute to load them. If everything should be randomly intitialzed 
+(no loading time), set `-w2v_uri none`.
+
 ```
 cd src
 python main_wlk_wasser.py -a <amr_file> -b <amr_file>
 ```
 
-Return AMR n:m alignment projected to original AMR nodes
+### Return AMR n:m alignment projected to original AMR nodes
 
 ```
 cd src
 python main_wlk_wasser_alignment.py -a <amr_file> -b <amr_file>
 ```
-
-Note that the node labels will get initialized with GloVe vectors, 
-it can take a minute to load them. If everything should be randomly intitialzed 
-(no loading time), set `-w2v_uri none`.
 
 ### Learning edge parameters for control
 
