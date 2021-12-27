@@ -92,7 +92,9 @@ if __name__ == "__main__":
     preds = np.mean(predss, axis=0)
     
     if args.corpus_score:
-        print(np.mean(np.mean(predss, axis=1)))
+        avgs = np.mean(predss, axis=1)
+        print("corpus average over runs:", np.mean(avgs))
+        print("standard deviation over runs:", np.std(avgs))
     else:
         print("\n".join(str(pr) for pr in preds))
 

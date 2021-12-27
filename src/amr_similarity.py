@@ -49,6 +49,9 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                               'fasttext-wiki-news-subwords-300'
                               etc.
                               if None, then use only random embeddings
+                              
+                              alternatively: a dict type object with 
+                              pretrained vecs
             relation_type (string): edge label representation type
                                     possible: either 'scalar' or 'vector'
         """
@@ -63,6 +66,9 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         self.params = None
         self.unk_nodes = {}
         if w2v_uri:
+            if not isinstance(w2v_uri, str):
+                self.wordvecs = w2v_uri
+                self.dim = self.wordvecs["dog"].shape[0] 
             try:
                 self.wordvecs = api.load(w2v_uri)
                 self.dim = self.wordvecs["dog"].shape[0]
@@ -132,7 +138,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
             else:
                 label_vec[label] = vec
         
-        #get vecs for new unknown nodes and update
+        #get vecs for new unknown nodes and update 
         rand_vecs = np.random.rand(len(label_no_vec), self.dim)
         for i, label in enumerate(label_no_vec):
             vec = rand_vecs[i]
@@ -203,8 +209,6 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                 if label not in dic:
                     edge_labels.append(label)
                     dic[label] = True
-        #edge_labels = Counter(alles).most_common()
-        #edge_labels = [x for x, count in edge_labels]
         param = self.sample_edge_label_param(n=len(edge_labels))
         self.params = param
         self.param_keys = {edge_labels[idx]:idx for idx in range(len(edge_labels))}
@@ -369,7 +373,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
             with multiprocessing.Pool(10) as p:
                 preds = p.map(self._predict_single, zipped)
         else:
-            for i in range(len(zipped)):    
+            for i in range(len(zipped)):   
                 preds.append(self._predict_single(zipped[i]))
 
         return np.array(preds)
