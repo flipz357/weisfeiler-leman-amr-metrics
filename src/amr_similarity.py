@@ -7,7 +7,6 @@ import gensim.downloader as api
 from copy import deepcopy
 import multiprocessing
 import re
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 
