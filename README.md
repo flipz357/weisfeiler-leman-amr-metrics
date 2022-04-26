@@ -53,7 +53,7 @@ optimize the parameters. In the end the script will return predictions for
 `-a_test <amr_file>` vs. `b_test <amr_file>`.
 
 
-### Symbolic AMR similarity
+### Symbolic (Structural) AMR similarity
 
 ```
 cd src
