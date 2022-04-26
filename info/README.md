@@ -1,4 +1,4 @@
-Results on BAMBOO. Resuls for STS, SICK, PARA. And an arithmetic mean and sample weighted arithmetic mean that take results on robustness challenges into account. Sample weighted mean assigns more weight to scores from data sets where more data is available (depending on data size).
+Results on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark). Resuls for STS, SICK, PARA. And an arithmetic mean and sample weighted arithmetic mean that take results on robustness challenges into account. Sample weighted mean assigns more weight to scores from data sets where more data is available (depending on data size).
 
 | Metric      | STS   | SICK  | PARA  | AMEAN | WMEAN |
 |-------------|-------|-------|-------|-------|-------| 
