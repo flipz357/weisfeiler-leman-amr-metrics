@@ -3,7 +3,7 @@ import argparse
 def build_arg_parser():
 
     parser = argparse.ArgumentParser(
-            description='amr')
+            description='Argument parser for optimizing WWLK edge weights')
 
     parser.add_argument('-a_train'
             , type=str
@@ -45,7 +45,7 @@ def build_arg_parser():
             , type=int
             , nargs='?'
             , default=20
-            , choices=list(range(0,60,10))
+            , choices=list(range(0, 60, 10))
             , help='logging level (int), see\
                     https://docs.python.org/3/library/logging.html#logging-levels')
     
@@ -77,6 +77,7 @@ if __name__ == "__main__":
     logger = log_helper.set_get_logger("Wasserstein AMR similarity", args.log_level)
     logger.info("loading amrs from files {} and {}".format(
         args.a_train, args.b_train))
+    
     import black_box_optim as optim
     import data_helpers as dh
     import amr_similarity as amrsim
@@ -100,9 +101,8 @@ if __name__ == "__main__":
     string_amrs2_train = dh.read_amr_file(amrfile2_train)
     graphs2_train, node_map2_train = gh.parse_string_amrs(string_amrs2_train)
     
-    prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri)
+    prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, is_resettable=False)
     prepro.prepare(graphs1_train, graphs2_train)
-    prepro.transform(graphs1_train, graphs2_train)
     
     ################
 
@@ -112,7 +112,6 @@ if __name__ == "__main__":
     string_amrs2_dev = dh.read_amr_file(amrfile2_dev)
     graphs2_dev, node_map2_dev = gh.parse_string_amrs(string_amrs2_dev)
     
-    prepro.transform(graphs1_dev, graphs2_dev)
     
     ################
 
@@ -122,11 +121,11 @@ if __name__ == "__main__":
     string_amrs2_test = dh.read_amr_file(amrfile2_test)
     graphs2_test, node_map2_test = gh.parse_string_amrs(string_amrs2_test)
     
-    prepro.transform(graphs1_test, graphs2_test)
     
     ################
 
-    predictor = amrsim.AmrWasserPredictor(params=prepro.params, param_keys=prepro.param_keys, iters=args.k) 
+    predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k) 
+    predictor.predict(graphs1_train[:2], graphs2_train[:2]) 
     
     # if training and dev targets not exists then it is role confusion 
     # which means targets are 0, 1, 0, 1, 0, 1 ....
@@ -146,7 +145,7 @@ if __name__ == "__main__":
     optimizer = optim.SPSA(graphs1_train, graphs2_train, predictor
                             , targets, dev_graphs_a=graphs1_dev
                             , dev_graphs_b=graphs2_dev, targets_dev=targets_dev
-                            , init_lr=args.init_lr, eval_steps=35)
+                            , init_lr=args.init_lr, eval_steps=100)
     
     optimizer.fit()
     preds = predictor.predict(graphs1_test, graphs2_test)

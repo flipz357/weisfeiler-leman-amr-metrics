@@ -1,12 +1,11 @@
 import logging
-from collections import defaultdict
 import networkx as nx
 import penman
 logger = logging.getLogger("penman")
 logger.setLevel(30)
 
 
-def parse_string_amrs(string_penman_amrs, add_coref_info_to_labels=False):
+def parse_string_amrs(string_penman_amrs, edge_to_node_transform=False):
     """builds nx medi graphs from amr sembank.
     
     Args:
@@ -24,14 +23,14 @@ def parse_string_amrs(string_penman_amrs, add_coref_info_to_labels=False):
     
     amrs = [stringamr2graph(s) for s in string_penman_amrs]
     triples = [graph2triples(G) for G in amrs]
-    graphs_nm = [amrtriples2nxmedigraph(tx, add_coref_info_to_labels) for tx in triples]
+    graphs_nm = [amrtriples2nxmedigraph(tx, edge_to_node_transform) for tx in triples]
     graphs = [elm[0] for elm in graphs_nm]
     node_map = [elm[1] for elm in graphs_nm]
 
     return graphs, node_map
 
 
-def amrtriples2nxmedigraph(triples, add_coref_info_to_labels=False):
+def amrtriples2nxmedigraph(triples, edge_to_node_transform=False):
     """builds nx medi graph from amr triples.
     
     Args:
@@ -47,6 +46,9 @@ def amrtriples2nxmedigraph(triples, add_coref_info_to_labels=False):
 
     # reify nodes (e.g., (n, :op1, US) ---> (n, :op1, var) & (var, :instance, US))
     reify_nodes(triples)
+
+    if edge_to_node_transform:
+        do_edge_node_transform(triples)
 
     # build variable -> concept map
     var_concept_map = get_var_concept_map(triples)
@@ -69,10 +71,6 @@ def amrtriples2nxmedigraph(triples, add_coref_info_to_labels=False):
     # add edges
     add_edges(G, [t for t in triples if t[1] != ":instance"], var_index_map)
     
-    # maybe add coref info to node atribute "label"
-    if add_coref_info_to_labels:
-        G = add_coref_label(G)
-
     # return graph and a map from node ids to orig. AMR variables
     return G, index_var_map
 
@@ -143,10 +141,36 @@ def reify_nodes(triples):
     newvarkey = "rfattribute_"
     idx = 0
     for cid in collect_ids:
-        varname = newvarkey + str(idx)
+        inst = triples[cid][2]
+        varname = newvarkey + str(idx) + "[==instance:{}]".format(inst)
         triples.append((triples[cid][0], triples[cid][1], varname))
-        triples.append((varname, ":instance", triples[cid][2]))
+        triples.append((varname, ":instance", inst))
         idx += 1
+    for i in reversed(sorted(list(collect_ids))):
+        del triples[i]
+    return None
+
+def do_edge_node_transform(triples):
+    # constant nodes are targets with no outgoing edge (leaves) 
+    # that don't have an incoming :instance edge
+    collect_ids = set()
+    collect_new_triples = []
+    newvarkey = "edge_node_"
+    for i, tr in enumerate(triples):
+        src = tr[0]
+        rel = tr[1]
+        target = tr[2]
+        if rel == ":instance":
+            continue
+        newnode = newvarkey + str(i) + "[==rel_triple:{}]".format((src, rel, target))
+        et1 = (src, ":edge", newnode)
+        et2 = (newnode, ":edge", target)
+        et3 = (newnode, ":instance", rel)
+        collect_ids.add(i)
+        collect_new_triples.append(et1)
+        collect_new_triples.append(et2)
+        collect_new_triples.append(et3)
+    triples += collect_new_triples
     for i in reversed(sorted(list(collect_ids))):
         del triples[i]
     return None
@@ -168,8 +192,7 @@ def stringamr2graph(string):
     #handle potential cases where vaiable names in AMR are also concept names
     for i, tr in enumerate(g.triples):
         if tr[1] == ":instance" and tr[0] == tr[2]:
-            g.triples[i] = (tr[0], tr[1], tr[2] + "_")
-    
+            g.triples[i] = (tr[0], tr[1], tr[2] + "_")    
     return g
 
 
@@ -232,46 +255,4 @@ def nx_digraph_to_triples(G):
         triples.append((src_label, tr[2]['label'], tgt_label))
     return triples
 
-
-def add_coref_label(G):
-    """add coref info to node labels.
-
-    E.g., node 1 with label "apple" and node 2 with label "apple"
-    ----> node 1 has label "apple###2" and node 2 has label "apple###1"
-    
-    Args:
-        G (nx medi graph): nx multi edge di graph that has "label" attribute on
-                            every node
-
-    Returns:
-        a new graph
-    """
-
-    G = G.copy()
-    labelcount = defaultdict(int)
-    for node in G.nodes:
-        label = G.nodes[node]["label"]
-        labelcount[label] += 1
-    for node in G.nodes:
-        label = G.nodes[node]["label"]
-        G.nodes[node]["label"] = label + "###" + str(labelcount[label])
-        labelcount[label] -= 1 
-    node_idx = {}
-    triples = nx_digraph_to_triples(G)
-    idx = 0
-    for tr in triples:
-        if tr[0] not in node_idx:
-            node_idx[tr[0]] = idx
-            idx += 1
-        if tr[2] not in node_idx:
-            node_idx[tr[2]] = idx
-            idx += 1
-    G_new = nx.MultiDiGraph()
-    for node in node_idx:
-        G_new.add_node(node_idx[node], label=node)
-    add_edges(G_new, triples, node_idx)
-    if not triples:
-        for node in G:
-            G_new.add_node(node, label=G.nodes[node]["label"])
-    return G_new
 

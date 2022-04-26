@@ -1,43 +1,71 @@
-import numpy as np
 import logging
-from scipy.spatial.distance import cosine, euclidean
+import multiprocessing
+import re
+import time
+import numpy as np
+from scipy.spatial.distance import cosine, cdist
 from scipy.stats import entropy
 from pyemd import emd_with_flow
 import gensim.downloader as api
-from copy import deepcopy
-import multiprocessing
-import re
+import networkx as nx
 
 logger = logging.getLogger(__name__)
 
 
 class GraphSimilarityPredictor():
+    """(Interface): predicts similarities for paired Inputs that are multi edge networkx Di-Graphs,
+    """
+
+    def validate(self, graphs):
+        vals = [isinstance(g, nx.MultiDiGraph) for g in graphs]
+        if not all(vals):
+            raise ValueError("wrong input type, need networkx multi-edge directed graphs")
+        return None
 
     def predict(self, graphs_1, graphs_2):
-        """predicts similarities for paired amrs
-        Input are multi edge networkx Di-Graphs 
-        """
-        pass
+        return self._predict(graphs_1, graphs_2)
+
+
+class GraphSimilarityPredictorAligner(GraphSimilarityPredictor):
+    """(Interface): predicts similarities for paired amrs Input are multi edge networkx Di-Graphs 
+    """
+    
+    def validate(self, graphs, nodemaps):
+        vals = [isinstance(g, nx.MultiDiGraph) for g in graphs]
+        if not all(vals):
+            raise ValueError("wrong input type, need networkx multi-edge directed graphs")
+        vals = [isinstance(nm, dict) for nm in nodemaps]
+        if not all(vals):
+            raise ValueError("wrong input type, need dictionaries")
+        return None
+
+    def predict_and_align(self, graphs_1, graphs_2, node_map1, node_map2):
+        return self._predict_and_align(graphs_1, graphs_2, node_map1, node_map2)
 
 
 class Preprocessor():
+    """(Interface): preprocesses data of paired multi edge networkx Di-Graphs 
+    """
 
     def transform(self, graphs_1, graphs_2):
         """preprocesses amr graphs"""
-        pass
-
-
-class PreparablePreprocessor(Preprocessor):
-
+        self._transform(graphs_1, graphs_2)
+        return None
+    
     def prepare(self, graphs_1, graphs_2):
-        """ prepare something on graph data, e.g. load embeds"""
-        pass
- 
+        self._prepare(graphs_1, graphs_2)
+        return None
+    
+    def reset(self):
+        self._reset()
+        return None
 
-class AmrWasserPreProcessor(PreparablePreprocessor):
+ 
+class AmrWasserPreProcessor(Preprocessor):
 
     def __init__(self, w2v_uri='glove-wiki-gigaword-100', 
-                    relation_type="scalar", init="random_uniform"):
+                    relation_type="scalar", init="random_uniform",
+                    is_resettable=True):
         """Initilize Preprocessor object
 
         Args:
@@ -53,6 +81,8 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                               pretrained vecs
             relation_type (string): edge label representation type
                                     possible: either 'scalar' or 'vector'
+            init (string): how to initialize edge weights?
+            is_resettable (bool): can the parameters be resetted?
         """
 
         w2v_uri = w2v_uri
@@ -64,6 +94,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         self.param_keys = None
         self.params = None
         self.unk_nodes = {}
+        self.is_resettable = is_resettable
         if w2v_uri:
             if not isinstance(w2v_uri, str):
                 self.wordvecs = w2v_uri
@@ -77,15 +108,21 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                         If this is desired, no need to worry.".format(w2v_uri))
         return None
 
-    def prepare(self, graphs_1, graphs_2):
+    def _prepare(self, graphs_1, graphs_2):
         """initialize embedding of graph nodes and edges"""
         self.params_ready = False
-        self._prepare(graphs_1, graphs_2)
+        self._xprepare(graphs_1, graphs_2)
         self.params_ready = True
         return None
 
+    def _reset(self):
+        self.params_ready = False
+        self.param_keys = None
+        self.params = None
+        self.unk_nodes = {}
+        return None
 
-    def transform(self, graphs1, graphs2):
+    def _transform(self, graphs1, graphs2):
         """embeds nx multi-digraphs. I.e. assigns every 
         node and edge attribute "latent" with a parameter
 
@@ -119,6 +156,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
             self.embed(g)
         for g in gs2:
             self.embed(g)
+        logger.debug("no embeddings available for node labels: {}".format(self.unk_nodes.keys()))
         return None
     
     def embed(self, G):
@@ -131,14 +169,14 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
             if label in self.unk_nodes:
                 label_vec[label] = self.unk_nodes[label]
                 continue
-            vec = self.get_vec(label)
+            vec = self._get_vec(label)
             if vec is None:
                 label_no_vec.add(label)
             else:
                 label_vec[label] = vec
         
-        #get vecs for new unknown nodes and update 
-        rand_vecs = np.random.rand(len(label_no_vec), self.dim)
+        rand_vecs = np.random.uniform(-0.05, 0.05, size=(len(label_no_vec), self.dim))
+        
         for i, label in enumerate(label_no_vec):
             vec = rand_vecs[i]
             self.unk_nodes[label] = vec
@@ -155,7 +193,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
 
         return None
       
-    def get_vec(self, string):
+    def _get_vec(self, string):
         """lookup a vector for a string
         
         Args:
@@ -169,7 +207,7 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         # if the node is a negation node in AMR (indicated as '-', we assign
         # random vec)
         if string == "-":
-            return None
+            string = "false-not-untrue"
 
         # further cleaning
         string = string.replace("\"", "").replace("'", "")
@@ -177,18 +215,33 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
 
         # we can delete word senses here (since they will get contextualized)
         string = re.sub(r'-[0-9]+', '', string)
-        vecs = [] 
         
+        string = string.replace(":", "")
+        
+        vecs = [] 
+         
         #lookup
         for key in string.split("-"):
             if key in self.wordvecs:
                 vecs.append(np.copy(self.wordvecs[key]))
+        if "_" in string:
+            for key in string.split("_"):
+                if key in self.wordvecs:
+                    vecs.append(np.copy(self.wordvecs[key]))
         if vecs:
             return np.max(vecs, axis=0)
+        
+        if string.isnumeric():
+            chars = list(string)
+            for i, key in enumerate(chars):
+                if key in self.wordvecs:
+                    vecs.append(np.copy(self.wordvecs[key]) / (1+i))
+        if vecs:
+            return np.mean(vecs, axis=0)
 
         return None
 
-    def _prepare(self, graphs1, graphs2):
+    def _xprepare(self, graphs1, graphs2):
         """Prepares the edge label parameters.
 
         Args:
@@ -247,16 +300,25 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
         """
         
         params = []
+
+
         
-        if self.init == "random_uniform":
+        if self.init == "ones":
+            params = np.ones((n, 1))
+        
+        if self.init == "constant":
+            params = np.full((n, 1), 0.2)
+        
+        elif self.init == "random_uniform":
             for _ in range(n):
-                params.append(np.random.uniform(0.25, 0.35, size=(1)))
+                params.append(np.random.uniform(0.20, 0.35, size=(1)))
+            params = np.array(params)
         
         elif self.init == "min_entropy": 
             for _ in range(n):
                 sample = []
                 for _ in range(10):
-                    sample.append(np.random.uniform(0.0, 1, size=(1)))
+                    sample.append(np.random.uniform(0.20, 0.35, size=(1)))
                 entropies = []
                 for i in range(10):
                     entropies.append(
@@ -264,92 +326,75 @@ class AmrWasserPreProcessor(PreparablePreprocessor):
                                         + list(sample[i])).flatten()))
                 argmin = np.argmin(entropies)
                 params.append(sample[argmin])
+            params = np.array(params)
         
-        return np.array(params)
+        return params
             
+class NodeDistanceMatrixGenerator():
 
-class AmrWasserPredictor(GraphSimilarityPredictor):
+    """Given a list with graph tuples, it generates node embeddings 
+    and produces distance matrix"""
 
-    def __init__(self, params=None, param_keys=None, iters=2):
+    def __init__(self, params=None, param_keys=None, 
+                    iters=2, communication_direction="both"):
+        """Intitalizes node embedding generatror
+            
+            Args:
+                params (array): edge parameters
+                param_keys (dict): maps from edge labels to parameter index
+                iters (int): contextualization iterations
+                communication_direction: either "both", "fromout", or "fromin"
+                                        specifies message passing direction 
+                                        (see arguments of main_wlk_wasser.py)
+        """
+        
         self.params = params
+        self.active_params = np.zeros(len(self.params))
         if params is None:
             self.params = []
         self.param_keys = param_keys
         if param_keys is None:
             self.param_keys = {}
-            self.unk_edge = 0.33
+            self.unk_edge = 0.2
         else:
             self.unk_edge = np.random.rand(self.params.shape[1]) 
         self.iters = iters
+        self.communication_direction = communication_direction
         return None
-  
-    def _predict_single(self, graphtuple):
-        """Predict WWLK similarity for a (A,B) graph tuple
+     
+    def _wl_embed_single(self, graphtuple):
+        """Embed nodes and generate distance matrix for a (A,B) graph tuple
+            This is required as EMD input.
         
         Args:
             graphtuple (tuple): graph tuple (A,B) of nx medi graphs
-            iters (int): what degree of contextualization is desired?
+            iters (int): what degree of contextualization is wanted?
                         default=2
 
         Returns:
-            similarity
+            - distance matrix
+            - node weights graph 1
+            - node weights graph 2
+            - order of nodes in matrix graph1
+            - order of nodes in matrix graph2
         """
 
         a1 = graphtuple[0]
         a2 = graphtuple[1]
         
-        #get init node embeddings
-        e1, _ = self.collect_graph_embed(a1)
-        e2, _ = self.collect_graph_embed(a2)
-    
-        #get node embeddings from different k
-        E1, E2 = self.WL_latent(a1, a2, iters=self.iters)
-
-        #concat
-        E1 = np.concatenate([e1, E1], axis=1)
-        E2 = np.concatenate([e2, E2], axis=1)
-        
-        # get wmd input
-        v1, v2, dists = self.get_wmd_input(E1, E2)
-
-        #compute wmd
-        emd, _ = emd_with_flow(v1, v2, dists)
-        
-        return emd * -1
-    
-    def _predict_single_flow_order(self, graphtuple):
-        """Predict WWLK similarity for a (A,B) graph tuple and return alignment
-        
-        Args:
-            graphtuple (tuple): graph tuple (A,B) of nx medi graphs
-            iters (int): what degree of contextualization is desired?
-                        default=2
-
-        Returns:
-            - similarity
-            - flow matrix
-            - dist matrix
-            - indeces of matrices
-        """
-
-        a1 = graphtuple[0]
-        a2 = graphtuple[1]
-
         e1, order1 = self.collect_graph_embed(a1)
         e2, order2 = self.collect_graph_embed(a2)
-         
-        E1, E2 = self.WL_latent(a1, a2, iters=2)
+        E1, E2 = self._WL_latent(a1, a2, iters=self.iters)
         E1 = np.concatenate([e1, E1], axis=1)
         E2 = np.concatenate([e2, E2], axis=1)
-       
-        v1, v2, dists = self.get_wmd_input(E1, E2)
-        emd, flow = emd_with_flow(v1, v2, dists)
         
-        return emd * -1, flow, dists, order1, order2
+        v1, v2, dists = self._get_emd_input(E1, E2)
+        
+        return dists, v1, v2, order1, order2
 
-    def predict(self, amrs1, amrs2, parallel=False):
-        
-        """Predict WWLK similarities for two (parallel) data sets
+    def generate(self, amrs1, amrs2, parallel=False):
+        """two (parallel) data sets, call _wl_embed_single 
+        on each paired graph
         
         Args:
             amrs1 (list): list with nx medi graphs a_1,...,a_n
@@ -357,70 +402,26 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
             parallel (boolean): parallelize computation? default=no
 
         Returns:
-            similarities for AMR graphs
+            output of _wl_embed_single for each graph pair
         """
-        
+
+        self.active_params = np.zeros(len(self.params))
         assert len(amrs2) == len(amrs1)
-        
-        amrs1 = deepcopy(amrs1)
-        amrs2 = deepcopy(amrs2)
-        
+         
         zipped = list(zip(amrs1, amrs2))
-        preds = []
+        data = []
 
         if parallel:
             with multiprocessing.Pool(10) as p:
-                preds = p.map(self._predict_single, zipped)
+                data = p.map(self._wl_embed_single, zipped)
         else:
-            for i in range(len(zipped)):   
-                preds.append(self._predict_single(zipped[i]))
+            for i in range(len(zipped)):
+                if i % 100 == 0:
+                    logger.info("{}/{} node distance matrices computed".format(i, len(zipped)))
+                data.append(self._wl_embed_single(zipped[i]))
+        return data
 
-        return np.array(preds)
-
-    def predict_and_align(self, amrs1, amrs2, nodemap1, nodemap2):
-        """Predict WWLK similarities for two (parallel) data sets 
-            and get alignments
-        
-        Args:
-            amrs1 (list): list with nx medi graphs a_1,...,a_n
-            amrs2 (list): list with nx medi graphs b_1,...,b_n
-            nodemap1 (dict): mapping from nx medi graph nodes 
-                             to standard AMR variables for amrs1
-            nodemap2 (dict): mapping from nx medi graph nodes 
-                             to standard AMR variables for amrs2
-
-        Returns:
-            - similarities for AMR graphs
-            - alignments
-        """
-
-        node2nodeorig_1 = nodemap1
-        node2nodeorig_2 = nodemap2
-        amrs1 = deepcopy(amrs1)
-        amrs2 = deepcopy(amrs2)
-        zipped = list(zip(amrs1, amrs2))
-        assert len(amrs2) == len(amrs1)
-        
-        preds = []
-        aligns = []
-        for i in range(len(zipped)):
-            #get sims, flows, etc
-            sim, flow, dists, order1, order2 = self._predict_single_flow_order(zipped[i])
-            align_dict = {} 
-            # project alignment to orig AMR graphs
-            for j, label in enumerate(order1):
-                align_dict[node2nodeorig_1[i][label]] = {}
-                row = flow[j][len(order1):]
-                cost_row = dists[j][len(order1):]
-                for k, num in enumerate(row):
-                    if num > 0.0:
-                        align_dict[node2nodeorig_1[i][label]][node2nodeorig_2[i][order2[k]]] = (num, cost_row[k])
-            aligns.append(align_dict)
-            preds.append(sim)
-
-        return preds, aligns
-
-    def get_wmd_input(self, mat1, mat2):
+    def _get_emd_input(self, mat1, mat2):
         """Prepares input for pyemd
         
         Args:
@@ -432,6 +433,9 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
             - prior weights for nodes of B
             - cost matrix
         """
+
+        mat1 = mat1 / np.linalg.norm(mat1, axis=1)[:,None] 
+        mat2 = mat2 / np.linalg.norm(mat2, axis=1)[:,None]
         
         # construct prior weights of nodes... all are set equal here
         v1 = np.concatenate([np.ones(mat1.shape[0]), np.zeros(mat2.shape[0])])
@@ -440,19 +444,17 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         v2 = v2 / sum(v2)
         
         # build cost matrix
-        dist = np.zeros(shape=(len(v1), len(v1)))
-        vocab_map = {}
-        for i in range(v1.shape[0]):
-            if i < mat1.shape[0]:
-                vocab_map[i] = mat1[i]
-            if i >= mat1.shape[0]:
-                vocab_map[i] = mat2[i - mat1.shape[0]]
-        for i in range(dist.shape[0]):
-            for j in range(dist.shape[1]):
-                dist[i, j] = euclidean(self.norm(vocab_map[i]), self.norm(vocab_map[j]))
-        return v1, v2, dist
+        dist_mat = np.zeros(shape=(len(v1), len(v1)), dtype=np.double)
+        
+        idxs1 = list(range(0, len(mat1)))
+        idxs2 = list(range(len(mat1), len(mat2) + len(mat1)))
+        
+        #set distances
+        dx = cdist(mat1, mat2)
+        dist_mat[np.ix_(idxs1, idxs2)] = dx
+        
+        return v1, v2, dist_mat
 
-    
     def norm(self, x):
         """scale vector to length 1"""
         div = np.linalg.norm(x)
@@ -485,7 +487,6 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         labels = []
         for node in nx_latent.nodes:
             vecs.append(nx_latent.nodes[node]["latent"])
-            #labels.append(nx_latent.nodes[node]["label"])
             labels.append(node)
         return np.array(vecs), labels
 
@@ -493,9 +494,10 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         """safe retrieval of an edge parameter"""
         if label not in self.param_keys:
             return self.unk_edge
+        self.active_params[self.param_keys[label]] += 1
         return self.params[self.param_keys[label]]
 
-    def _communicate(self, G, node):
+    def _communicate_node(self, G, node):
         """In-place contextualization of a node with neighborhood
 
         Args:
@@ -507,34 +509,26 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         """
 
         summ = []
-        
-        def mult_reduce(mat):
-            newvec = mat[0].copy()
-            for v in mat[1:]:
-                newvec *= v
-            return newvec
-        # iterate over outgoing
-        for nb in G.neighbors(node):
-            # get node embedding of neighbor
-            latents = [G.nodes[nb]["latent"]]
-            # multi di graph can have multiple edges, so iterate over all
-            for k in G.get_edge_data(node, nb):
-                e_latent = self.maybe_has_param(G.get_edge_data(node, nb)[k]['label'])
-                latents.append(e_latent)
-            #scalar or vector multiplication with edge params and neighbor node embedding
-            #latents = np.multiply.reduce(latents, axis=0, dtype=object)
-            latents = mult_reduce(latents)
-            summ.append(latents)
+         
+        if self.communication_direction in ["both", "fromout"]:
+            # iterate over outgoing
+            for nb in G.neighbors(node):
+                # get node embedding of neighbor
+                latentv = G.nodes[nb]["latent"].copy()
+                # multi di graph can have multiple edges, so iterate over all
+                for k in G.get_edge_data(node, nb):
+                    e_latent = self.maybe_has_param(G.get_edge_data(node, nb)[k]['label'])
+                    latentv *= e_latent
+                summ.append(latentv)
               
-        # iterate over incoming, see above
-        for nb in G.predecessors(node):
-            latents = [G.nodes[nb]["latent"]]
-            for k in G.get_edge_data(nb, node):
-                e_latent = self.maybe_has_param(G.get_edge_data(nb, node)[k]['label'])
-                latents.append(e_latent)
-            #latents = np.multiply.reduce(latents, axis=0, dtype=object)
-            latents = mult_reduce(latents)
-            summ.append(latents)
+        if self.communication_direction in ["both", "fromin"]:
+            # iterate over incoming, see above
+            for nb in G.predecessors(node):
+                latentv = G.nodes[nb]["latent"].copy()
+                for k in G.get_edge_data(nb, node):
+                    e_latent = self.maybe_has_param(G.get_edge_data(nb, node)[k]['label'])
+                    latentv *= e_latent
+                summ.append(latentv)
         
         # handle possible exception case
         if not summ:
@@ -545,7 +539,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         G.nodes[node]["newlatent"] = G.nodes[node]["latent"] + summ
         return None
 
-    def communicate(self, nx_latent):
+    def _communicate(self, nx_latent):
         """Applies contextualization (in-place) for all nodes of a graph
         
         Args:
@@ -557,7 +551,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         
         #collect new embeddings
         for node in nx_latent.nodes:
-            self._communicate(nx_latent, node)
+            self._communicate_node(nx_latent, node)
 
         #set new embeddings
         for node in nx_latent.nodes:
@@ -565,7 +559,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         
         return None
 
-    def wl_iter_latent(self, nx_g1_latent, nx_g2_latent):
+    def _wl_iter_latent(self, nx_g1_latent, nx_g2_latent):
         """apply one WL iteration and get node embeddings for two graphs A and B
 
         Args:
@@ -579,15 +573,13 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
             - new copy of B
         """
 
-        g1_copy = deepcopy(nx_g1_latent)
-        g2_copy = deepcopy(nx_g2_latent)
-        self.communicate(g1_copy)
-        self.communicate(g2_copy)
-        mat1, _ = self.collect_graph_embed(g1_copy)
-        mat2, _ = self.collect_graph_embed(g2_copy)
-        return mat1, mat2, g1_copy, g2_copy
+        self._communicate(nx_g1_latent)
+        self._communicate(nx_g2_latent)
+        mat1, _ = self.collect_graph_embed(nx_g1_latent)
+        mat2, _ = self.collect_graph_embed(nx_g2_latent)
+        return mat1, mat2
 
-    def WL_latent(self, nx_g1_latent, nx_g2_latent, iters=2):
+    def _WL_latent(self, nx_g1_latent, nx_g2_latent, iters=2):
         """apply K WL iteration and get node embeddings for two graphs A and B
 
         Args:
@@ -602,7 +594,7 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         v1s = []
         v2s = []
         for _ in range(iters):
-            x1_mat, x2_mat, nx_g1_latent, nx_g2_latent = self.wl_iter_latent(nx_g1_latent, nx_g2_latent)
+            x1_mat, x2_mat = self._wl_iter_latent(nx_g1_latent, nx_g2_latent)
             v1s.append(x1_mat)
             v2s.append(x2_mat)
         g_embed1 = np.concatenate(v1s, axis=1)
@@ -610,13 +602,209 @@ class AmrWasserPredictor(GraphSimilarityPredictor):
         return g_embed1, g_embed2
 
 
+class EmSimilarity():
+
+    def __init__(self):
+        return None
+  
+    def _ems_single(self, data):
+        """Predict WWLK similarity for a (A,B) graph tuple
+        
+        Args:
+            graphtuple (tuple): graph tuple (A,B) of nx medi graphs
+            iters (int): what degree of contextualization is desired?
+                        default=2
+
+        Returns:
+            similarity
+        """
+        
+        dists, v1, v2 = data
+        
+        #compute wmd
+        emd, flow = emd_with_flow(v1, v2, dists)
+        
+        return (emd * -1, flow)
+
+    def ems_multi(self, distss, v1s, v2s, parallel=False):
+        
+        """Predict WWLK similarities for two (parallel) data sets
+        
+        Args:
+            amrs1 (list): list with nx medi graphs a_1,...,a_n
+            amrs2 (list): list with nx medi graphs b_1,...,b_n
+            parallel (boolean): parallelize computation? default=no
+
+        Returns:
+            similarities for AMR graphs
+        """
+         
+        zipped = list(zip(distss, v1s, v2s))
+        preds = []
+
+        if parallel:
+            with multiprocessing.Pool(10) as p:
+                preds = p.map(self._ems_single, zipped)
+        else:
+            for i in range(len(zipped)):  
+                if i % 100 == 0:
+                    logger.info("{}/{} Wasserstein distances computed".format(i, len(zipped)))
+                preds.append(self._ems_single(zipped[i]))
+
+        return preds
+
+
+class AmrWasserPredictor(GraphSimilarityPredictorAligner):
+
+    def __init__(self, preprocessor, iters=2, stability=0, communication_direction="both"):
+
+        self.preprocessor = preprocessor
+        self.iters = iters
+        self.ems = EmSimilarity()
+        self.wl_dist_mat_generator = None
+        self.stability = stability
+        self.communication_direction = communication_direction
+
+        return None
+    
+    def _gen_dist_mats(self, graphs1, graphs2):
+        
+        # if resettable then reset 
+        # recall: preprocessor generates random embeddings for OOV 
+        # so this is needed for distance matrix samples (stability)
+        if self.preprocessor.is_resettable:
+            self.preprocessor.reset()
+        
+        # if preprocessor not fitted, fit prepro and create Wl generator
+        if not self.preprocessor.params_ready:
+            self.preprocessor.prepare(graphs1, graphs2)
+            params = self.preprocessor.params
+            param_keys = self.preprocessor.param_keys
+            self.wl_dist_mat_generator = NodeDistanceMatrixGenerator(params=params, 
+                                                                    param_keys=param_keys, 
+                                                                    iters=self.iters,
+                                                                    communication_direction=self.communication_direction)
+
+        # if preprocessor not resettable and no WL generator ready, create WL generator
+        # not resettable ussually occurs only in training mode
+        if self.wl_dist_mat_generator == None:
+            params = self.preprocessor.params
+            param_keys = self.preprocessor.param_keys
+            self.wl_dist_mat_generator = NodeDistanceMatrixGenerator(params=params, 
+                                                                    param_keys=param_keys, 
+                                                                    iters=self.iters,
+                                                                    communication_direction=self.communication_direction)
+        
+        # init node embeddings
+        self.preprocessor.transform(graphs1, graphs2)
+        
+        # contextualize
+        data = self.wl_dist_mat_generator.generate(graphs1, graphs2)
+
+        return data
+
+    def _gen_expected_dist_mats(self, graphs1, graphs2):
+        
+        data = self._gen_dist_mats(graphs1, graphs2)
+        mats = [dat[0] for dat in data]
+         
+        n = self.stability #100
+        for i in range(n):
+            logger.info("sampled {}/{} distance matrices".format(i, n))
+            mats_tmp = [dat[0] for dat in self._gen_dist_mats(graphs1, graphs2)]
+            mats = [mat + mats_tmp[i] for i, mat in enumerate(mats)]
+        new_data = []
+        for i, mat in enumerate(mats):
+            dat = [mat / (n + 1)] + list(data[i][1:])
+            new_data.append(dat)
+        return new_data
+    
+
+    def _predict_and_align(self, amrs1, amrs2, node2nodeorig_1, node2nodeorig_2):
+        """Predict WWLK similarities for two (parallel) data sets 
+            and get alignments
+        
+        Args:
+            amrs1 (list): list with nx medi graphs a_1,...,a_n
+            amrs2 (list): list with nx medi graphs b_1,...,b_n
+            nodemap1 (dict): mapping from nx medi graph nodes 
+                             to standard AMR variables for amrs1
+            nodemap2 (dict): mapping from nx medi graph nodes 
+                             to standard AMR variables for amrs2
+
+        Returns:
+            - similarities for AMR graphs
+            - alignments
+        """
+ 
+        data = self._gen_expected_dist_mats(amrs1, amrs2)
+        mats = [dat[0] for dat in data]
+        v1s = [dat[1] for dat in data]
+        v2s = [dat[2] for dat in data]
+        orders1 = [dat[3] for dat in data]
+        orders2 = [dat[4] for dat in data]
+        sim_flow_list = self.ems.ems_multi(mats, v1s, v2s)
+        
+        preds = []
+        aligns = []
+        
+        for i in range(len(sim_flow_list)):
+            sim, flow = sim_flow_list[i]
+            dist_mat = mats[i]
+            order1 = orders1[i]
+            order2 = orders2[i]
+            align_dict = {} 
+            # project alignment to orig AMR graphs
+            for j, label in enumerate(order1):
+                align_dict[node2nodeorig_1[i][label]] = {}
+                cutv = len(order1)
+                row = flow[j][cutv:]
+                cost_row = dist_mat[j][cutv:]
+                for k, num in enumerate(row):
+                    if num > 0.0:
+                        varnode1 = node2nodeorig_1[i][label]
+                        varnode2 = node2nodeorig_2[i][order2[k]]
+                        align_dict[varnode1][varnode2] = (num, cost_row[k])
+            aligns.append(align_dict)
+            preds.append(sim)
+        return preds, aligns
+
+
+    def _predict(self, amrs1, amrs2):
+        """Predict WWLK similarities for two (parallel) data sets 
+            and get alignments
+        
+        Args:
+            amrs1 (list): list with nx medi graphs a_1,...,a_n
+            amrs2 (list): list with nx medi graphs b_1,...,b_n
+            nodemap1 (dict): mapping from nx medi graph nodes 
+                             to standard AMR variables for amrs1
+            nodemap2 (dict): mapping from nx medi graph nodes 
+                             to standard AMR variables for amrs2
+
+        Returns:
+            - similarities for AMR graphs
+            - alignments
+        """
+
+        
+        data = self._gen_expected_dist_mats(amrs1, amrs2)
+        mats = [dat[0] for dat in data]
+        v1s = [dat[1] for dat in data]
+        v2s = [dat[2] for dat in data]
+        sim_flow_list = self.ems.ems_multi(mats, v1s, v2s)
+        preds = [dat[0] for dat in sim_flow_list]
+        return preds
+
+
 class AmrSymbolicPredictor(GraphSimilarityPredictor):
     
-    def __init__(self, simfun='cosine', iters=2):
+    def __init__(self, simfun='cosine', iters=2, communication_direction="both"):
         self.simfun = simfun
         self.iters = iters
+        self.communication_direction = communication_direction
 
-    def predict(self, amrs1, amrs2):
+    def _predict(self, amrs1, amrs2):
         """predicts similarity scores for paired graphs
         
         Args:
@@ -639,6 +827,8 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             if np.isnan(kv):
                 kv = 0.0
             kvs.append(kv)
+            if i % 100 == 0:
+                logger.info("{}/{} graph pairs fully processed".format(i, len(amrs1)))
         return kvs
         
     def wl_gather_node(self, node, G):
@@ -653,18 +843,20 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         """
         
         newn = [G.nodes[node]["label"]]
-
-        for nb in G.neighbors(node):
-            for k in G.get_edge_data(node, nb):
-                el = G.get_edge_data(node, nb)[k]['label']
-                label = G.nodes[nb]["label"]
-                newn.append(el + '_' + label)
         
-        for nb in G.predecessors(node):
-            for k in G.get_edge_data(nb, node):
-                el = G.get_edge_data(nb, node)[k]['label']
-                label = G.nodes[nb]["label"]
-                newn.append(el + '_' + label)
+        if self.communication_direction in ["both", "fromout"]:
+            for nb in G.neighbors(node):
+                for k in G.get_edge_data(node, nb):
+                    el = G.get_edge_data(node, nb)[k]['label']
+                    label = G.nodes[nb]["label"]
+                    newn.append(el + '_' + label)
+        
+        if self.communication_direction in ["both", "fromin"]:
+            for nb in G.predecessors(node):
+                for k in G.get_edge_data(nb, node):
+                    el = G.get_edge_data(nb, node)[k]['label']
+                    label = G.nodes[nb]["label"]
+                    newn.append(el + '_' + label)
         
         return newn
     
@@ -738,8 +930,6 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             v2s = [vec * wts[i] for i, vec in enumerate(v2s)]
         v1 = np.concatenate(v1s)
         v2 = np.concatenate(v2s)
-        if kt == 'dot':
-            return np.einsum('i,i ->', v1, v2)
         if kt == 'cosine':
             return 1 - cosine(v1, v2)
         if kt == 'rbf':
@@ -748,6 +938,9 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             dot = -1 * np.einsum('i,i ->', diff, diff)
             div = 2 * gamma ** 2
             return np.exp(dot / div)
+        # dot product
+        return np.einsum('i,i ->', v1, v2)
+
 
     def wl(self, nx_g1, nx_g2, iters=2, stattype='nodecount'):
         """collect vectors over WL iterations
@@ -768,7 +961,6 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
             v1s.append(x1)
             v2s.append(x2)
             vocabs.append(vocab)
-        #print(v1s, v2s, vocabs)
         return v1s, v2s, vocabs
 
     def wl_iter(self, nx_g1, nx_g2, stattype='nodecount'):
@@ -845,7 +1037,6 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         vec = np.zeros(len(vocab))
         for item in items:
             vec[vocab[item]] += 1
-        #print(items)
         return vec
 
     def nc(self, g1, g2):
@@ -920,5 +1111,4 @@ class AmrSymbolicPredictor(GraphSimilarityPredictor):
         vec2 = self.create_fea_vec(g2bow, vocab)
         vec1 = vec1
         vec2 = vec2
-        #print(g1bow, g2bow)
         return vec1, vec2, vocab

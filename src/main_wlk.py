@@ -4,7 +4,7 @@ import numpy as np
 def build_arg_parser():
 
     parser = argparse.ArgumentParser(
-            description='amr')
+            description='Argument parser for WLK')
 
     parser.add_argument('-a'
             , type=str
@@ -18,7 +18,7 @@ def build_arg_parser():
             , type=int
             , nargs='?'
             , default=40
-            , choices=list(range(0,60,10))
+            , choices=list(range(0, 60, 10))
             , help='logging level (int), see\
                     https://docs.python.org/3/library/logging.html#logging-levels')
     
@@ -28,10 +28,30 @@ def build_arg_parser():
             , default=2
             , help='number of WL iterations')
     
-    parser.add_argument('--corpus_score'
-            , action='store_true'
-            , help='output only average score over amrs')
+    parser.add_argument('-round_decimals'
+            , type=int
+            , nargs='?'
+            , default=3
+            , help='decimal places to round scores to. Set to large negative number\
+                    to prevent any rounding')
+    
+    parser.add_argument('-output_type'
+            , type=str
+            , default='score'
+            , choices=['score', 'score_corpus', 'score_alignment']
+            , help='output options:\
+                    score: one score per line for every input graph pair\
+                    score_corpus: average score\
+                    score_alignment: same as "score" but also provide alignment')
 
+    parser.add_argument('-communication_direction'
+            , type=str
+            , default='both'
+            , choices=['both', 'fromout', 'fromin']
+            , help='message passing direction:\
+                    both: graph is treated as undirected\
+                    fromout: node receive info from -> neighbor ("bottom-up AMR")\
+                    fromin: node receive info from <- neighbor ("top-down AMR")')
     return parser
 
 if __name__ == "__main__":
@@ -51,17 +71,21 @@ if __name__ == "__main__":
     amrfile2 = args.b
      
     string_amrs1 = dh.read_amr_file(amrfile1)
-    graphs1, _ = gh.parse_string_amrs(string_amrs1, add_coref_info_to_labels=True)
+    graphs1, _ = gh.parse_string_amrs(string_amrs1)
 
     string_amrs2 = dh.read_amr_file(amrfile2)
-    graphs2, _ = gh.parse_string_amrs(string_amrs2, add_coref_info_to_labels=True)
+    graphs2, _ = gh.parse_string_amrs(string_amrs2)
     
-    predictor = amrsim.AmrSymbolicPredictor(iters=args.k)
+    predictor = amrsim.AmrSymbolicPredictor(iters=args.k, communication_direction=args.communication_direction)
+ 
+    def get_scores():
+        return predictor.predict(graphs1, graphs2)
 
-    preds = predictor.predict(graphs1, graphs2)
-    
-    if args.corpus_score:
-        print(np.mean(preds))
-    else:
+    if args.output_type == 'score':
+        preds = get_scores()
+        preds = np.around(preds, args.round_decimals)
         print("\n".join(str(pr) for pr in preds))
 
+    elif args.output_type == 'score_corpus':
+        preds = get_scores()
+        print(np.around(np.mean(preds), args.round_decimals))

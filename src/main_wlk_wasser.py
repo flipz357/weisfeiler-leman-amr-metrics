@@ -1,10 +1,11 @@
 import argparse
 import numpy as np
+import json
 
 def build_arg_parser():
 
     parser = argparse.ArgumentParser(
-            description='amr')
+            description='Argument parser for WWLK')
 
     parser.add_argument('-a'
             , type=str
@@ -26,13 +27,6 @@ def build_arg_parser():
             , default=2
             , help='number of WL iterations')
     
-    parser.add_argument('-ensemble_n'
-            , type=int
-            , nargs='?'
-            , default=1
-            , help='calculate similarity multiple times with different \
-                    edge random intitializations.')
-
     parser.add_argument('-log_level'
             , type=int
             , nargs='?'
@@ -41,15 +35,49 @@ def build_arg_parser():
             , help='logging level (int), see\
                     https://docs.python.org/3/library/logging.html#logging-levels')
     
+    parser.add_argument('--edge_to_node_transform'
+            , action='store_true'
+            , help='trasnform to equivalent unlabeled-edge graph, e.g.,\
+                    (1, :var, 2) -> (1, :edge, 3), (3, :edge, 2), 3 has label :var')
+    
     parser.add_argument('-random_init_relation'
             , type=str
             , default='min_entropy'
-            , choices=['min_entropy', 'random_uniform']
+            , choices=['min_entropy', 'random_uniform', 'ones', 'constant']
             , help='how to initialize relation embeddings')
+        
+    parser.add_argument('-output_type'
+            , type=str
+            , default='score'
+            , choices=['score', 'score_corpus', 'score_alignment']
+            , help='output options:\
+                    score: one score per line for every input graph pair\
+                    score_corpus: average score\
+                    score_alignment: same as "score" but also provide alignment')
     
-    parser.add_argument('--corpus_score'
-            , action='store_true'
-            , help='output only average score over amrs')
+    parser.add_argument('-communication_direction'
+            , type=str
+            , default='both'
+            , choices=['both', 'fromout', 'fromin']
+            , help='message passing direction:\
+                    both: graph is treated as undirected\
+                    fromout: node receive info from -> neighbor ("bottom-up AMR")\
+                    fromin: node receive info from <- neighbor ("top-down AMR")')
+
+    parser.add_argument('-stability_level'
+            , type=int
+            , nargs='?'
+            , default=0
+            , help='compute expected distance matrix via sampling,\
+                    increases score stability (random vectors of OOV tokens)\
+                    but increases runtime')
+    
+    parser.add_argument('-round_decimals'
+            , type=int
+            , nargs='?'
+            , default=3
+            , help='decimal places to round scores to. Set to large negative number\
+                    to prevent any rounding')
 
     return parser
 
@@ -70,31 +98,42 @@ if __name__ == "__main__":
     amrfile2 = args.b
     
     string_amrs1 = dh.read_amr_file(amrfile1)
-    graphs1, _ = gh.parse_string_amrs(string_amrs1)
+    graphs1, nodemap1 = gh.parse_string_amrs(string_amrs1, edge_to_node_transform=args.edge_to_node_transform)
 
     string_amrs2 = dh.read_amr_file(amrfile2)
-    graphs2, _ = gh.parse_string_amrs(string_amrs2) 
+    graphs2, nodemap2 = gh.parse_string_amrs(string_amrs2, edge_to_node_transform=args.edge_to_node_transform) 
 
-    predss = []
-    
-    for _ in range(args.ensemble_n):
-        
+    def get_scores():
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
-        prepro.prepare(graphs1, graphs2)
-
-        prepro.transform(graphs1, graphs2)
-        predictor = amrsim.AmrWasserPredictor(params=prepro.params
-                                                , param_keys=prepro.param_keys
-                                                , iters=args.k)
+        
+        predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
+                                                communication_direction=args.communication_direction)
+        
         preds = predictor.predict(graphs1, graphs2)
-        predss.append(preds)
+        return preds
     
-    preds = np.mean(predss, axis=0)
+    def get_scores_alignments():
+        prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
+        
+        predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k, stability=args.stability_level)
+        
+        preds, aligns = predictor.predict_and_align(graphs1, graphs2, nodemap1, nodemap2)
+        return preds, aligns
     
-    if args.corpus_score:
-        avgs = np.mean(predss, axis=1)
-        print("corpus average over runs:", np.mean(avgs))
-        print("standard deviation over runs:", np.std(avgs))
-    else:
+    
+    if args.output_type == 'score':
+        preds = get_scores()
+        preds = np.around(preds, args.round_decimals)
         print("\n".join(str(pr) for pr in preds))
+        
+    elif args.output_type == 'score_corpus':
+        preds = get_scores()
+        print(np.around(np.mean(preds), args.round_decimals))
+
+    elif args.output_type == 'score_alignment':
+        preds, aligns = get_scores_alignments()
+        preds = np.around(preds, args.round_decimals)
+        jls = [json.dumps({"score":pred, "alignment":aligns[i]}) for i, pred in enumerate(preds)]
+        print("\n".join(jls))
+            
 
