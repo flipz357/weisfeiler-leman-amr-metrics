@@ -36,7 +36,7 @@ cd src
 python main_wlk_wasser.py -a <amr_file> -b <amr_file> -output_type score_alignment
 ```
 
-This prints the scores and many-many node aignments, with flow and cost information. 
+This prints the scores and many-many node alignments, with flow and cost information. 
 
 ### Learning edge weights
 
@@ -62,7 +62,7 @@ python main_wlk.py -a <amr_file> -b <amr_file>
 
 ## Tips
 
-### Increase result stability
+### Increase numerical stability
 
 Currently, only `main_wlk.py`, i.e., the structural WLK provides fully deterministic results.
 Since in current Wasserstein WLK the edges and words not in GloVe are initialized randomly, 
