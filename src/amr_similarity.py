@@ -301,8 +301,6 @@ class AmrWasserPreProcessor(Preprocessor):
         
         params = []
 
-
-        
         if self.init == "ones":
             params = np.ones((n, 1))
         
@@ -685,8 +683,7 @@ class AmrWasserPredictor(GraphSimilarityPredictorAligner):
                                                                     iters=self.iters,
                                                                     communication_direction=self.communication_direction)
 
-        # if preprocessor not resettable and no WL generator ready, create WL generator
-        # not resettable ussually occurs only in training mode
+        # no WL generator ready, create WL generator
         if self.wl_dist_mat_generator == None:
             params = self.preprocessor.params
             param_keys = self.preprocessor.param_keys
