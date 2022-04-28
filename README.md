@@ -95,7 +95,7 @@ This also transforms the graphs to (equivalent) graphs with unlabeled edges (see
 
 Some important parameters that can be set according to use-case
 
-- `w2v_uri <string>`: use different word embeddings (FastText, word2vec, etc.). Current default: `glove-wiki-gigaword-100`.
+- `-w2v_uri <string>`: use different word embeddings (FastText, word2vec, etc.). Current default: `glove-wiki-gigaword-100`.
 - `-k <int>`: Use an int to specify the maximum contextualization level. E.g., If k=5, a node will receive info from nbs that are up to 5 hops away.
 - `-stability_level <int>`: Consider two graphs with a few random parameters. We calculate the expected node distance matrix by sampling parameters `<int>` times. This increases stability of results but also increases runtime. A good trade-off may be 10 or 20. 
 - `-communication_direction <string>`: There are three options. Consider (x, :arg0, y), where :arg0 is directed. Option `fromin' means y receives from x. Option `fromout' means that x receives from y. `both' (default value) means `fromin` *and* `fromout`.
