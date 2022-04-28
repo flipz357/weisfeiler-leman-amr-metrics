@@ -1,4 +1,4 @@
-Results on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark). Resuls for STS, SICK, PARA. And an arithmetic mean and sample weighted arithmetic mean that take results on robustness challenges into account. Sample weighted mean assigns more weight to scores from data sets where more data is available (depending on data size).
+Some results on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark). Resuls for STS, SICK, PARA. And an arithmetic mean and sample weighted arithmetic mean that take results on robustness challenges into account. Sample weighted mean assigns more weight to scores from data sets where more data is available (depending on data size).
 
 | Metric      | STS   | SICK  | PARA  | AMEAN | WMEAN |
 |-------------|-------|-------|-------|-------|-------| 
@@ -20,6 +20,6 @@ Note:
 - Sema: from their repo.
 - SemBleu: from their repo.
 - WLK-k2: Structural Weisfeiler Leman AMR kernel. Contextualize nodes over iterations, collect graph signatures from iterations, cosine similarity. Call with `python main_wlk.py -a <path1> -b <path2>`
-- WWLK-k2: Wasserstein Weisfeiler Leman AMR kernel. Contextualize nodes in latent space over iterations, collect node embeddings, Wasserstein distance. Call with `python m2ain_wlk_wasser.py -a <path1> -b <path2> -stability_level 25`
-- WWLK-parser: More stable version for more consistent parsing evaluation results. Transforms edge-labeled AMR graph to equivalent graph without edge labels, where edges are now nodes. Call with: `python main_wlk_wasser.py -a <path1> -b <path2> -stability_level 15 -k 2 --edge_to_node_transform -round_decimals 10 -random_init_relation constant'
+- WWLK-k2: Wasserstein Weisfeiler Leman AMR kernel. Contextualize nodes in latent space over iterations, collect node embeddings, Wasserstein distance. Call with `python m2ain_wlk_wasser.py -a <path1> -b <path2> -stability_level 15`.
+- WWLK-parser: More stable version for more consistent parsing evaluation results. Transforms edge-labeled AMR graph to equivalent graph without edge labels, where edges are now nodes. Call with: `python main_wlk_wasser.py -a <path1> -b <path2> -stability_level 15 -k 2 --edge_to_node_transform -round_decimals 10 -random_init_relation constant`
 
