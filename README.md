@@ -111,7 +111,7 @@ python main_wlk_wasser.py --help
 
 ### Benchmarking
 
-Some scores on BAMBOO of current constellations: see `info/`
+Some scores on BAMBOO of current configurations: see `info/`
 
 Approx Processing TIME 1000 graph pairs: 
 
