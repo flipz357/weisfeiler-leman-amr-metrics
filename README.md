@@ -20,14 +20,14 @@ penman (tested 1.1.0)
 
 ### Basic Wasserstein AMR similarity
 
-Note that the node labels will get initialized with GloVe vectors, 
-it can take a minute to load them. If everything should be randomly intitialzed 
-(no loading time), set `-w2v_uri none`.
-
 ```
 cd src
 python main_wlk_wasser.py -a <amr_file> -b <amr_file>
 ```
+
+Note that the node labels will get initialized with GloVe vectors, 
+it can take a minute to load them. If everything should be randomly intitialzed 
+(no loading time), set `-w2v_uri none`.
 
 ### Return AMR n:m alignment:
 
@@ -74,6 +74,8 @@ cd src
 python main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                           -stability_level 15
 ```
+
+It computes an expected contextualized node distance matrix by repeated sampling of any unknown random parameters (`-stability_level n` samples), before calculating the Wasserstein distance.
 
 ### Parsing evaluation
 
