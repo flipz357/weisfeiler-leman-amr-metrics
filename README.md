@@ -2,7 +2,7 @@
 
 The repository contains python code for metrics of AMR graph similarity.
 
-**New in Version 0.2**: faster, more parameters, increase stabiltiy.
+**New in Version 0.2**: faster, more options, increase stabiltiy.
 
 ## Requirements
 
@@ -79,10 +79,10 @@ It computes an expected contextualized node distance matrix by repeated sampling
 
 ### Parsing evaluation
 
-Use `-stability_level` for increased stability (as above). And a corpus score (currently, only output option is the mean over all scores). A good option for parsing evaluation may be:
+Use `-stability_level` for increased stability when using wasser wlk (as above). And calculate a corpus score (currently, only output option is the mean over all scores). A good option for parsing evaluation may be:
 
 ```
-python -u m2ain_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
+python -u main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                               -output_type score_corpus \
                               -stability_level 15 -k 2 \
                               -random_init_relation constant \
@@ -93,9 +93,9 @@ This also transforms the graphs to (equivalent) graphs with unlabeled edges (see
 
 
 
-### Important Parameters
+### Important Options
 
-Some important parameters that can be set according to use-case
+Some important options that can be set according to use-case
 
 - `-w2v_uri <string>`: use different word embeddings (FastText, word2vec, etc.). Current default: `glove-wiki-gigaword-100`.
 - `-k <int>`: Use an int to specify the maximum contextualization level. E.g., If k=5, a node will receive info from nbs that are up to 5 hops away.
@@ -104,7 +104,7 @@ Some important parameters that can be set according to use-case
 - `--edge_to_node_transform`: This flag transforms the edge-labeled AMR graph into an (equivalent) graph with unlabeled edges. E.g., (1, arg1, 2), (1, arg2, 3) --> (1, 4), (1, 5), (4, 2), (5, 3), where 4 has label arg1 and 5 has label arg2.
 
 
-There are also more arguments that can be set, you can check more options out:
+More options can be checked out:
 
 ```
 cd src
