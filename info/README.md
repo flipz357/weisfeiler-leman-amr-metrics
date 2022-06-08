@@ -1,7 +1,7 @@
 Some results on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark). Resuls for STS, SICK, PARA. And an arithmetic mean and sample weighted arithmetic mean that take results on robustness challenges into account. Sample weighted mean assigns more weight to scores from data sets where more data is available (depending on data size).
 
 | Metric      | STS   | SICK  | PARA  | STS(reify) | SICK(reify) | PARA(reify)| STS(Syno) | SICK(Syno) | PARA(Syno) | STS(role) | SICK(role) | PARA(role) | AMEAN | GMEAN | HMEAN |WMEAN |
-|-------------|-------|-------|-------|-------|-------| 
+|-------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
 | Smatch      | 58.39 | 59.75 | 41.32 | 58.03 | 61.79 | 39.47 | 56.13 | 57.37 | 39.54 | 89.87 | 98.32 | 88.14 | 62.34 | 59.64 | 57.14 | 58.44 |
 | S2match(def)| 56.39 | 58.11 | 42.40 | 55.78 | 59.97 | 40.67 | 56.04 | 57.15 | 40.93 | 93.67 | 98.32 | 91.26 | 62.56 | 59.78 | 57.33 | 58.06 |
 | S2match     | 58.70 | 60.47 | 42.52 | 58.19 | 62.37 | 40.55 | 56.62 | 57.88 | 41.15 | 89.87 | 98.32 | 92.24 | 63.24 | 60.58 | 58.15 | 59.42 |
