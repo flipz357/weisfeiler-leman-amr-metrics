@@ -2,7 +2,7 @@ def clean_from_meta(amrstring):
     strings = amrstring.split("\n")
     return "\n".join([l for l in strings if not l.startswith("#")])
 
-def read_amr_file(p):
+def read_graph_file(p):
     """reads linearized string amr graphs from amr sembank.
     
     Args:

@@ -34,7 +34,12 @@ def build_arg_parser():
             , default=3
             , help='decimal places to round scores to. Set to large negative number\
                     to prevent any rounding')
-    
+
+    parser.add_argument('--edge_to_node_transform'
+            , action='store_true'
+            , help='trasnform to equivalent unlabeled-edge graph, e.g.,\
+                    (1, :var, 2) -> (1, :edge, 3), (3, :edge, 2), 3 has label :var')
+
     parser.add_argument('-output_type'
             , type=str
             , default='score'
@@ -52,6 +57,13 @@ def build_arg_parser():
                     both: graph is treated as undirected\
                     fromout: node receive info from -> neighbor ("bottom-up AMR")\
                     fromin: node receive info from <- neighbor ("top-down AMR")')
+    
+    parser.add_argument('-input_format'
+            , type=str
+            , nargs='?'
+            , default="penman"
+            , help='input format: either penman or tsv')
+ 
     return parser
 
 if __name__ == "__main__":
@@ -67,16 +79,20 @@ if __name__ == "__main__":
     import amr_similarity as amrsim
     import graph_helpers as gh
 
-    amrfile1 = args.a
-    amrfile2 = args.b
-     
-    string_amrs1 = dh.read_amr_file(amrfile1)
-    graphs1, _ = gh.parse_string_amrs(string_amrs1)
-
-    string_amrs2 = dh.read_amr_file(amrfile2)
-    graphs2, _ = gh.parse_string_amrs(string_amrs2)
+    graphfile1 = args.a
+    graphfile2 = args.b
     
-    predictor = amrsim.AmrSymbolicPredictor(iters=args.k, communication_direction=args.communication_direction)
+    grapa = gh.GraphParser(input_format=args.input_format, 
+                            edge_to_node_transform=args.edge_to_node_transform)
+
+    string_graphs1 = dh.read_graph_file(graphfile1)
+    graphs1, _ = grapa.parse(string_graphs1)
+
+    string_graphs2 = dh.read_graph_file(graphfile2)
+    graphs2, _ = grapa.parse(string_graphs2)
+   
+    predictor = amrsim.WLK(iters=args.k, 
+                            communication_direction=args.communication_direction)
  
     def get_scores():
         return predictor.predict(graphs1, graphs2)

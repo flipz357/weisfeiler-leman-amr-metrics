@@ -169,7 +169,7 @@ class SPSA:
                 pr = pr[0]
                 logger.info("current score {}".format(pr))
                 if pr > best_dev_score:
-                    logger.info("new high score on dev! Old score={}; \
+                    print("new high score on dev! Old score={}; \
                             New score={}, \
                             improvement=+{}; \
                             total improvement=+{};\

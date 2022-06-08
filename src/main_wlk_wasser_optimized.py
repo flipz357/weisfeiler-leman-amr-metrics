@@ -67,10 +67,22 @@ def build_arg_parser():
             , nargs='?'
             , default=0.75
             , help='initial learning rate') 
+
+    parser.add_argument('--edge_to_node_transform'
+            , action='store_true'
+            , help='trasnform to equivalent unlabeled-edge graph, e.g.,\
+                    (1, :var, 2) -> (1, :edge, 3), (3, :edge, 2), 3 has label :var')
+    
+    parser.add_argument('-input_format'
+            , type=str
+            , nargs='?'
+            , default="penman"
+            , help='input format: either penman or tsv') 
     
     return parser
 
 if __name__ == "__main__":
+        
     import log_helper
     
     args = build_arg_parser().parse_args()
@@ -83,48 +95,50 @@ if __name__ == "__main__":
     import amr_similarity as amrsim
     import graph_helpers as gh
 
-    amrfile1_train = args.a_train
-    amrfile2_train = args.b_train
+    graphfile1_train = args.a_train
+    graphfile2_train = args.b_train
     
     
-    amrfile1_dev = args.a_dev
-    amrfile2_dev = args.b_dev
+    graphfile1_dev = args.a_dev
+    graphfile2_dev = args.b_dev
     
-    amrfile1_test = args.a_test
-    amrfile2_test = args.b_test
+    graphfile1_test = args.a_test
+    graphfile2_test = args.b_test
     
+    grapa = gh.GraphParser(input_format=args.input_format, 
+                            edge_to_node_transform=args.edge_to_node_transform) 
     #################
 
-    string_amrs1_train = dh.read_amr_file(amrfile1_train)
-    graphs1_train, node_map1_train = gh.parse_string_amrs(string_amrs1_train)
+    string_graphs1_train = dh.read_graph_file(graphfile1_train)
+    graphs1_train, node_map1_train = grapa.parse(string_graphs1_train)
 
-    string_amrs2_train = dh.read_amr_file(amrfile2_train)
-    graphs2_train, node_map2_train = gh.parse_string_amrs(string_amrs2_train)
+    string_graphs2_train = dh.read_graph_file(graphfile2_train)
+    graphs2_train, node_map2_train = grapa.parse(string_graphs2_train)
     
     prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, is_resettable=False)
     prepro.prepare(graphs1_train, graphs2_train)
     
     ################
 
-    string_amrs1_dev = dh.read_amr_file(amrfile1_dev)
-    graphs1_dev, node_map1_dev = gh.parse_string_amrs(string_amrs1_dev)
+    string_graphs1_dev = dh.read_graph_file(graphfile1_dev)
+    graphs1_dev, node_map1_dev = grapa.parse(string_graphs1_dev)
 
-    string_amrs2_dev = dh.read_amr_file(amrfile2_dev)
-    graphs2_dev, node_map2_dev = gh.parse_string_amrs(string_amrs2_dev)
+    string_graphs2_dev = dh.read_graph_file(graphfile2_dev)
+    graphs2_dev, node_map2_dev = grapa.parse(string_graphs2_dev)
     
     
     ################
 
-    string_amrs1_test = dh.read_amr_file(amrfile1_test)
-    graphs1_test, node_map1_test = gh.parse_string_amrs(string_amrs1_test)
+    string_graphs1_test = dh.read_graph_file(graphfile1_test)
+    graphs1_test, node_map1_test = grapa.parse(string_graphs1_test)
 
-    string_amrs2_test = dh.read_amr_file(amrfile2_test)
-    graphs2_test, node_map2_test = gh.parse_string_amrs(string_amrs2_test)
+    string_graphs2_test = dh.read_graph_file(graphfile2_test)
+    graphs2_test, node_map2_test = grapa.parse(string_graphs2_test)
     
     
     ################
 
-    predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k) 
+    predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k) 
     predictor.predict(graphs1_train[:2], graphs2_train[:2]) 
     
     # if training and dev targets not exists then it is role confusion 

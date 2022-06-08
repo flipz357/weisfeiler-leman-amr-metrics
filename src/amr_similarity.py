@@ -229,7 +229,8 @@ class AmrWasserPreProcessor(Preprocessor):
                 if key in self.wordvecs:
                     vecs.append(np.copy(self.wordvecs[key]))
         if vecs:
-            return np.max(vecs, axis=0)
+            return np.mean(vecs, axis=0)
+        
         
         if string.isnumeric():
             chars = list(string)
@@ -309,14 +310,14 @@ class AmrWasserPreProcessor(Preprocessor):
         
         elif self.init == "random_uniform":
             for _ in range(n):
-                params.append(np.random.uniform(0.20, 0.35, size=(1)))
+                params.append(np.random.uniform(0.2, 0.35, size=(1)))
             params = np.array(params)
         
         elif self.init == "min_entropy": 
             for _ in range(n):
                 sample = []
                 for _ in range(10):
-                    sample.append(np.random.uniform(0.20, 0.35, size=(1)))
+                    sample.append(np.random.uniform(0.2, 0.35, size=(1)))
                 entropies = []
                 for i in range(10):
                     entropies.append(
@@ -652,9 +653,23 @@ class EmSimilarity():
         return preds
 
 
-class AmrWasserPredictor(GraphSimilarityPredictorAligner):
+class WasserWLK(GraphSimilarityPredictorAligner):
 
     def __init__(self, preprocessor, iters=2, stability=0, communication_direction="both"):
+        """Initializes Wasserstein Weisfeiler Leman Kernel
+
+        Args:
+            preprocessor (Preprocessor): an object that assigns embeddings 
+                                        to graph nodes and labels
+            iters (int): K
+            stability (int): in case there is randomness in pre-processing 
+                             (e.g., random embeddings for node labels not found in word2vec)
+                            then we compute an expected distance matrix by repeated sampling
+            communication_direction (string): communication direction in which messages are passed
+        
+        Returns:
+            None
+        """
 
         self.preprocessor = preprocessor
         self.iters = iters
@@ -794,7 +809,7 @@ class AmrWasserPredictor(GraphSimilarityPredictorAligner):
         return preds
 
 
-class AmrSymbolicPredictor(GraphSimilarityPredictor):
+class WLK(GraphSimilarityPredictor):
     
     def __init__(self, simfun='cosine', iters=2, communication_direction="both"):
         self.simfun = simfun

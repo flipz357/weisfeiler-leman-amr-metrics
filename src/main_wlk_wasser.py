@@ -78,6 +78,12 @@ def build_arg_parser():
             , default=3
             , help='decimal places to round scores to. Set to large negative number\
                     to prevent any rounding')
+    
+    parser.add_argument('-input_format'
+            , type=str
+            , nargs='?'
+            , default="penman"
+            , help='input format: either penman or tsv')
 
     return parser
 
@@ -94,19 +100,22 @@ if __name__ == "__main__":
     import amr_similarity as amrsim
     import graph_helpers as gh
 
-    amrfile1 = args.a
-    amrfile2 = args.b
+    graphfile1 = args.a
+    graphfile2 = args.b
     
-    string_amrs1 = dh.read_amr_file(amrfile1)
-    graphs1, nodemap1 = gh.parse_string_amrs(string_amrs1, edge_to_node_transform=args.edge_to_node_transform)
+    grapa = gh.GraphParser(input_format=args.input_format, 
+                            edge_to_node_transform=args.edge_to_node_transform)
+    
+    string_graphs1 = dh.read_graph_file(graphfile1)
+    graphs1, nodemap1 = grapa.parse(string_graphs1)
 
-    string_amrs2 = dh.read_amr_file(amrfile2)
-    graphs2, nodemap2 = gh.parse_string_amrs(string_amrs2, edge_to_node_transform=args.edge_to_node_transform) 
+    string_graphs2 = dh.read_graph_file(graphfile2)
+    graphs2, nodemap2 = grapa.parse(string_graphs2) 
 
     def get_scores():
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
         
-        predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
+        predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
                                                 communication_direction=args.communication_direction)
         
         preds = predictor.predict(graphs1, graphs2)
@@ -115,7 +124,7 @@ if __name__ == "__main__":
     def get_scores_alignments():
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
         
-        predictor = amrsim.AmrWasserPredictor(preprocessor=prepro, iters=args.k, stability=args.stability_level)
+        predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level)
         
         preds, aligns = predictor.predict_and_align(graphs1, graphs2, nodemap1, nodemap2)
         return preds, aligns

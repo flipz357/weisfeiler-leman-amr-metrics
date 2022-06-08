@@ -2,7 +2,7 @@
 
 The repository contains python code for metrics of AMR graph similarity.
 
-**New in Version 0.2**: faster, more options, increase stabiltiy.
+**New in Version 0.2**: faster, more options, increase stabiltiy, other graph formats.
 
 ## Requirements
 
@@ -60,7 +60,7 @@ cd src
 python main_wlk.py -a <amr_file> -b <amr_file>
 ```
 
-## Tips
+## Notes
 
 ### Increase numerical stability
 
@@ -84,14 +84,28 @@ Use `-stability_level` for increased stability when using wasser wlk (as above).
 ```
 python -u main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                               -output_type score_corpus \
-                              -stability_level 15 -k 2 \
+                              -stability_level 15 -k 4 \
                               -random_init_relation constant \
                               --edge_to_node_transform 
 ```
 
 This also transforms the graphs to (equivalent) graphs with unlabeled edges (see below), and lets us set constant edge weights.
 
+### Processing graphs other than AMR
 
+You can use the metrics for comparing/aligning other graph-based meaning representations, and node-labeled graphs in general.
+
+For graphs other than AMR use `-input_format tsv`. Then you can input files with tab or whitespace speparated triples. A new line indicates begin of another graph. The general format is `<src_node_id> <tgt_node_id> <relation_label>`, node labels are indicated with `:instance` triples. A graph looks similar to:
+
+```
+n1 n2 :rel_a
+n2 n3 :rel_b
+n1 label_n1 :instance
+n2 label_n2 :instance
+n3 label_n3 :instance
+```
+
+This graph contains 3 nodes and 2 edges, all edges and nodes have labels. That's it!
 
 ### Important Options
 
