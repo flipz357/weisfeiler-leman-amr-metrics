@@ -9,7 +9,7 @@ class GraphParser():
     def __init__(self, input_format="penman", edge_to_node_transform=False):
         
         if input_format not in ["penman", "tsv"]:
-            raise ValueError("format_type={} not a valid option".format(format_type))
+            raise ValueError("input_format={} not a valid option".format(input_format))
 
         self.input_format = input_format
         self.edge_to_node_transform = edge_to_node_transform
