@@ -1,7 +1,6 @@
 import logging
 import multiprocessing
 import re
-import time
 import numpy as np
 from scipy.spatial.distance import cosine, cdist
 from scipy.stats import entropy
