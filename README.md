@@ -95,7 +95,7 @@ This also transforms the graphs to (equivalent) graphs with unlabeled edges (see
 
 You can use the metrics for comparing/aligning other graph-based meaning representations, and node-labeled graphs in general.
 
-For graphs other than AMR use `-input_format tsv`. Then you can input files with tab or whitespace speparated triples. A new line indicates begin of another graph. The general format is `<src_node_id> <tgt_node_id> <relation_label>`, node labels are indicated with `:instance` triples. A graph looks similar to:
+For graphs other than AMR use `-input_format tsv`. Then you can input files with tab or whitespace speparated triples. An empty line indicates begin of another graph. The general format is `<src_node_id> <tgt_node_id> <relation_label>`, node labels are indicated with `:instance` triples. A graph looks similar to:
 
 ```
 n1 n2 :rel_a
