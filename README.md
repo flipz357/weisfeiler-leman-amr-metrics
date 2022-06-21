@@ -13,7 +13,8 @@ numpy (tested: 1.19.4)
 scipy (tested: 1.1.0) 
 networkx (tested: 2.5)
 gensim (tested: 3.8.3)
-penman (tested 1.1.0)
+penman (tested: 1.1.0)
+pyemd (tested: 0.5.1)
 ```
 
 ## Computing AMR metrics
