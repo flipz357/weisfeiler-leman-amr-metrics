@@ -108,6 +108,10 @@ n3 label_n3 :instance
 
 This graph contains 3 nodes and 2 edges, all edges and nodes have labels. That's it!
 
+### Score range
+
+For convenience, score range is now in [-1, 1] for minimum similarity (-1) and maximum similarity (1).
+
 ### Important Options
 
 Some important options that can be set according to use-case

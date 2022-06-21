@@ -622,7 +622,11 @@ class EmSimilarity():
         #compute wmd
         emd, flow = emd_with_flow(v1, v2, dists)
         
-        return (emd * -1, flow)
+        #change to similarity in -1, 1
+        ems = emd * -1
+        ems += 1
+
+        return (ems, flow)
 
     def ems_multi(self, distss, v1s, v2s, parallel=False):
         
