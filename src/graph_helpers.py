@@ -16,35 +16,41 @@ class GraphParser():
 
         return None
 
-    def read_triples(self, string_graphs):
+    def graphs_to_triples(self, string_graphs):
+
         if self.input_format == "penman":
             amrs = [stringamr2graph(s) for s in string_graphs]
-            triples = [penmangraph2triples(G) for G in amrs]
+            tripless = [penmangraph2triples(G) for G in amrs]
+            tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
+        
         if self.input_format == "tsv":
-            triples = [tsv2triples(s) for s in string_graphs]
+            tripless = [tsv2triples(s) for s in string_graphs]
+            tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
 
-        return triples
+        return tripless
 
     def parse(self, string_graphs):
         
         #read triples
-        triples = self.read_triples(string_graphs)
-        
-        #handle potential cases where vaiable names in AMR are also concept names
-        for i, tr in enumerate(triples):
-            if tr[1] == ":instance" and tr[0] == tr[2]:
-                triples[i] = (tr[0], tr[1], tr[2] + "_")    
+        tripless = self.graphs_to_triples(string_graphs)
         
         # generate (g,m) networkx graphs from triples
         # g is a node-labeled and edge-labeled multi-edge networkx graph
         # and m is a map from node ids to networkx node ids to original node names
-        #print(triples)
-        graphs_nm = [amrtriples2nxmedigraph(tx, self.edge_to_node_transform) for tx in triples]
+        graphs_nm = [amrtriples2nxmedigraph(triples, self.edge_to_node_transform) for triples in tripless]
         graphs = [elm[0] for elm in graphs_nm]
         node_map = [elm[1] for elm in graphs_nm]
 
         return graphs, node_map
 
+def maybe_fix_if_concept_node_same_as_var_node(triples):
+    #handle potential cases where vaiable names in AMR are also concept names
+    #almost never happens, but some parsers do this once in a while, need to take 
+    # care of this
+    for i, tr in enumerate(triples):
+        if tr[1] == ":instance" and tr[0] == tr[2]:
+            triples[i] = (tr[0], tr[1], tr[2] + "-") 
+    return triples
 
 def amrtriples2nxmedigraph(triples, edge_to_node_transform=False):
     """builds nx medi graph from amr triples.
