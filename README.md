@@ -85,8 +85,8 @@ Use `-stability_level` for increased stability when using wasser wlk (as above).
 ```
 python -u main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                               -output_type score_corpus \
-                              -stability_level 15 -k 4 \
-                              -random_init_relation constant \
+                              -stability_level 15 -k 3 \
+                              -random_init_relation ones \
                               --edge_to_node_transform 
 ```
 
