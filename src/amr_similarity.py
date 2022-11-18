@@ -382,9 +382,13 @@ class NodeDistanceMatrixGenerator():
         
         e1, order1 = self.collect_graph_embed(a1)
         e2, order2 = self.collect_graph_embed(a2)
-        E1, E2 = self._WL_latent(a1, a2, iters=self.iters)
-        E1 = np.concatenate([e1, E1], axis=1)
-        E2 = np.concatenate([e2, E2], axis=1)
+        
+        if self.iters > 0:
+            E1, E2 = self._WL_latent(a1, a2, iters=self.iters)
+            E1 = np.concatenate([e1, E1], axis=1)
+            E2 = np.concatenate([e2, E2], axis=1)
+        else:
+            E1, E2 = e1, e2
         
         v1, v2, dists = self._get_emd_input(E1, E2)
         
