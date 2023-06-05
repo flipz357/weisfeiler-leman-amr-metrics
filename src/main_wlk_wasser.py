@@ -21,6 +21,12 @@ def build_arg_parser():
             , help='gensim uri for word embeddings, see \
                     https://github.com/RaRe-Technologies/gensim-data#models')
     
+    parser.add_argument('-prs'
+            , type=str
+            , default='s'
+            , choices=['p', 'r', 's']
+            , help='precision or recall or similarity')
+    
     parser.add_argument('-k'
             , type=int
             , nargs='?'
@@ -116,7 +122,7 @@ if __name__ == "__main__":
         prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
         
         predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
-                                                communication_direction=args.communication_direction)
+                                                communication_direction=args.communication_direction, prs=args.prs)
         
         preds = predictor.predict(graphs1, graphs2)
         return preds
