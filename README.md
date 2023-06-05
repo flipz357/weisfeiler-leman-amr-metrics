@@ -112,6 +112,13 @@ This graph contains 3 nodes and 2 edges, all edges and nodes have labels. That's
 
 For convenience, score range is now in [-1, 1] for minimum similarity (-1) and maximum similarity (1).
 
+### Asymmetric similarity
+
+Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as descirbed in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
+
+- `-prs p' for precision-like sub-graph measure
+- `-prs r' for recall-like super-graph measure
+
 ### Important Options
 
 Some important options that can be set according to use-case
