@@ -3,6 +3,7 @@
 The repository contains python code for metrics of AMR graph similarity.
 
 **New in Version 0.2**: faster, more options, increase stabiltiy, other graph formats.
+**New in Version 0.3**: asymmetric wasserstein graph measures as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available.
 
 ## Requirements
 
@@ -114,7 +115,7 @@ For convenience, score range is now in [-1, 1] for minimum similarity (-1) and m
 
 ### Asymmetric similarity
 
-Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as descirbed in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
+Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
 
 - `-prs p' for precision-like sub-graph measure
 - `-prs r' for recall-like super-graph measure
