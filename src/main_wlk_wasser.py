@@ -46,6 +46,9 @@ def build_arg_parser():
             , help='trasnform to equivalent unlabeled-edge graph, e.g.,\
                     (1, :var, 2) -> (1, :edge, 3), (3, :edge, 2), 3 has label :var')
     
+    parser.add_argument('--fine_grained_scores'
+            , action='store_true')
+    
     parser.add_argument('-random_init_relation'
             , type=str
             , default='min_entropy'
@@ -108,47 +111,136 @@ if __name__ == "__main__":
 
     graphfile1 = args.a
     graphfile2 = args.b
+                
+    prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
     
-    grapa = gh.GraphParser(input_format=args.input_format, 
-                            edge_to_node_transform=args.edge_to_node_transform)
+    predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
+                                                        communication_direction=args.communication_direction, prs=args.prs)
     
-    string_graphs1 = dh.read_graph_file(graphfile1)
-    graphs1, nodemap1 = grapa.parse(string_graphs1)
+    if not args.fine_grained_scores:
 
-    string_graphs2 = dh.read_graph_file(graphfile2)
-    graphs2, nodemap2 = grapa.parse(string_graphs2) 
+        grapa = gh.GraphParser(input_format=args.input_format, 
+                                edge_to_node_transform=args.edge_to_node_transform)
+        
+        string_graphs1 = dh.read_graph_file(graphfile1)
+        graphs1, nodemap1 = grapa.parse(string_graphs1)
 
-    def get_scores():
-        prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
-        
-        predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
-                                                communication_direction=args.communication_direction, prs=args.prs)
-        
-        preds = predictor.predict(graphs1, graphs2)
-        return preds
-    
-    def get_scores_alignments():
-        prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
-        
-        predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level)
-        
-        preds, aligns = predictor.predict_and_align(graphs1, graphs2, nodemap1, nodemap2)
-        return preds, aligns
-    
-    
-    if args.output_type == 'score':
-        preds = get_scores()
-        preds = np.around(preds, args.round_decimals)
-        print("\n".join(str(pr) for pr in preds))
-        
-    elif args.output_type == 'score_corpus':
-        preds = get_scores()
-        print(np.around(np.mean(preds), args.round_decimals))
+        string_graphs2 = dh.read_graph_file(graphfile2)
+        graphs2, nodemap2 = grapa.parse(string_graphs2) 
 
-    elif args.output_type == 'score_alignment':
-        preds, aligns = get_scores_alignments()
-        preds = np.around(preds, args.round_decimals)
-        jls = [json.dumps({"score":pred, "alignment":aligns[i]}) for i, pred in enumerate(preds)]
-        print("\n".join(jls))
+        def get_scores():
             
+            preds = predictor.predict(graphs1, graphs2)
+            return preds
+        
+        def get_scores_alignments():
+            
+            preds, aligns = predictor.predict_and_align(graphs1, graphs2, nodemap1, nodemap2)
+            return preds, aligns
+        
+        
+        if args.output_type == 'score':
+            preds = get_scores()
+            preds = np.around(preds, args.round_decimals)
+            print("\n".join(str(pr) for pr in preds))
+            
+        elif args.output_type == 'score_corpus':
+            preds = get_scores()
+            print(np.around(np.mean(preds), args.round_decimals))
+
+        elif args.output_type == 'score_alignment':
+            preds, aligns = get_scores_alignments()
+            preds = np.around(preds, args.round_decimals)
+            jls = [json.dumps({"score":pred, "alignment":aligns[i]}) for i, pred in enumerate(preds)]
+            print("\n".join(jls))
+
+    else:
+        try:
+            from smatchpp.subgraph_extraction import SubGraphExtractor
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError("For subgraph-extraction please install smatchpp: pip install smatchpp")
+        
+        subgraph_extractor = SubGraphExtractor()
+        grapa = gh.GraphParser(input_format=args.input_format, 
+                                edge_to_node_transform=args.edge_to_node_transform)
+        
+        string_graphs1 = dh.read_graph_file(graphfile1)
+        graphs1 = grapa.string_graphs_to_triples(string_graphs1)
+        sgraphs1 = [subgraph_extractor.all_subgraphs_by_name(graph) for graph in graphs1]
+
+        string_graphs2 = dh.read_graph_file(graphfile2)
+        graphs2 = grapa.string_graphs_to_triples(string_graphs2) 
+        sgraphs2 = [subgraph_extractor.all_subgraphs_by_name(graph) for graph in graphs2]
+        
+        predss = []
+        
+        amr_aspects = ["main"] + list(subgraph_extractor.amr_aspects.keys())
+        amr_aspects.remove("FOCUS")
+
+        for i_a, aspect in enumerate(amr_aspects):
+            
+            graphs1triples = [sgs[aspect] for sgs in sgraphs1]
+            graphs2triples = [sgs[aspect] for sgs in sgraphs2]
+            graphs1, nodemap1 = grapa.list_with_triple_sets_to_list_with_graphs(graphs1triples)
+            graphs2, nodemap2 = grapa.list_with_triple_sets_to_list_with_graphs(graphs2triples)
+                
+            if i_a == 0:
+                prepro = amrsim.AmrWasserPreProcessor(w2v_uri=args.w2v_uri, init=args.random_init_relation)
+            
+            def get_scores():
+                
+                predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level, 
+                                                        communication_direction=args.communication_direction, prs=args.prs)
+                
+                preds = predictor.predict(graphs1, graphs2)
+                return preds
+            
+            def get_scores_alignments():
+                
+                predictor = amrsim.WasserWLK(preprocessor=prepro, iters=args.k, stability=args.stability_level)
+                
+                preds, aligns = predictor.predict_and_align(graphs1, graphs2, nodemap1, nodemap2)
+                return preds, aligns
+             
+            if args.output_type == 'score':
+                preds = get_scores()
+                preds = np.around(preds, args.round_decimals)
+                predss.append((aspect, preds))
+                
+            elif args.output_type == 'score_corpus':
+                preds = get_scores()
+                kids = [i for i in range(len(graphs1)) if graphs1triples[i] + graphs2triples[i]]
+                preds = [preds[i] for i in kids]
+                score = np.around(np.mean(preds), args.round_decimals)
+                predss.append((aspect, score))
+
+            elif args.output_type == 'score_alignment':
+                preds, aligns = get_scores_alignments()
+                preds = np.around(preds, args.round_decimals)
+                jls = [json.dumps({"score":pred, "alignment":aligns[i]}) for i, pred in enumerate(preds)]
+                predss.append((aspect, jls))
+        
+        if args.output_type == 'score':
+            collect = []
+            for aspect, preds in predss:
+                for i in range(len(preds)):
+                    if len(collect) == i:
+                        collect.append({})
+                    collect[i][aspect] = preds[i]
+            for elm in collect:
+                print(elm)
+        
+        if args.output_type == 'score_corpus':
+            for aspect, pred in predss:
+                print({aspect: pred})
+        
+        if args.output_type == 'score_alignment':
+            collect = []
+            for aspect, preds in predss:
+                for i in range(len(preds)):
+                    if len(collect) == i:
+                        collect.append({})
+                    collect[i][aspect] = preds[i]
+            for elm in collect:
+                print(elm)
 

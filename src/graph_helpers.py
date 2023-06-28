@@ -1,45 +1,64 @@
 import logging
 import networkx as nx
-import penman
+from smatchpp.data_helpers import PenmanReader
+
 logger = logging.getLogger("penman")
 logger.setLevel(30)
 
+
 class GraphParser():
 
-    def __init__(self, input_format="penman", edge_to_node_transform=False):
+    def __init__(self, input_format="penman", edge_to_node_transform=False
+                    , remove_artificial_root=True, remove_duplicates=True, lower=True):
         
         if input_format not in ["penman", "tsv"]:
             raise ValueError("input_format={} not a valid option".format(input_format))
 
         self.input_format = input_format
         self.edge_to_node_transform = edge_to_node_transform
+        self.remove_artificial_root = remove_artificial_root
+        self.remove_duplicates = remove_duplicates
+        self.lower = lower
 
         return None
 
-    def graphs_to_triples(self, string_graphs):
+    def string_graphs_to_triples(self, string_graphs):
 
         if self.input_format == "penman":
-            amrs = [stringamr2graph(s) for s in string_graphs]
-            tripless = [penmangraph2triples(G) for G in amrs]
+            pr = PenmanReader()
+            tripless = [pr.string2graph(s) for s in string_graphs]
             tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
         
         if self.input_format == "tsv":
             tripless = [tsv2triples(s) for s in string_graphs]
             tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
-
+        
+        if self.remove_artificial_root:
+            tripless = [[triple for triple in triples if "ROOT_OF_GRAPH" not in triple] for triples in tripless]
+        
+        if self.lower:
+            tripless = [[(t[0].lower(), t[1].lower(), t[2].lower()) for t in triples] for triples in tripless]
+        
+        if self.remove_duplicates:
+            tripless = [list(set(triples)) for triples in tripless]
+        
         return tripless
+        
+    def list_with_triple_sets_to_list_with_graphs(self, tripless):
+        graphs_nm = [amrtriples2nxmedigraph(triples, self.edge_to_node_transform) for triples in tripless]
+        graphs = [elm[0] for elm in graphs_nm]
+        node_map = [elm[1] for elm in graphs_nm]
+        return graphs, node_map
 
     def parse(self, string_graphs):
         
         #read triples
-        tripless = self.graphs_to_triples(string_graphs)
+        tripless = self.string_graphs_to_triples(string_graphs)
         
         # generate (g,m) networkx graphs from triples
         # g is a node-labeled and edge-labeled multi-edge networkx graph
         # and m is a map from node ids to networkx node ids to original node names
-        graphs_nm = [amrtriples2nxmedigraph(triples, self.edge_to_node_transform) for triples in tripless]
-        graphs = [elm[0] for elm in graphs_nm]
-        node_map = [elm[1] for elm in graphs_nm]
+        graphs, node_map = self.list_with_triple_sets_to_list_with_graphs(tripless)
 
         return graphs, node_map
 
@@ -198,9 +217,11 @@ def do_edge_node_transform(triples):
         del triples[i]
     return None
 
-
 def stringamr2graph(string):
-    """uses penman to convert serialized AMR to penman graph
+    """
+    DEPRECATED
+
+    uses penman to convert serialized AMR to penman graph
     
     Args:
         string (str): serialized AMR '(n / concept :arg1 ()...)'
@@ -212,7 +233,6 @@ def stringamr2graph(string):
     g = penman.decode(string)
     
     return g
-
 
 def tsv2triples(string):
     """Parses tsv graph to triples
@@ -244,7 +264,7 @@ def tsv2triples(string):
     triples = [(t[0], t[2], t[1]) for t in triples]
     return triples
 
-
+""" DEPRECATED
 def triples2penmangraph(triples):
     return penman.Graph(triples)
 
@@ -252,7 +272,7 @@ def triples2penmangraph(triples):
 def penmangraph2triples(G):
     tr = G.triples
     return tr
-
+"""
 
 def get_var_concept_map(triples):
     """creates a dictionary that maps varibales to their concepts

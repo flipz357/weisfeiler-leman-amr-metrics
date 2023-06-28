@@ -3,7 +3,10 @@
 The repository contains python code for metrics of AMR graph similarity.
 
 **New in Version 0.2**: faster, more options, increase stabiltiy, other graph formats.
-**New in Version 0.3**: asymmetric wasserstein graph measures as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available.
+
+**New in Version 0.3**: asymmetric Wasserstein graph measures as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available.
+
+**New in Version 0.4**: Reduced dependencies, sub-graph metrics for aspects including CAUSE, LOCATION, QUANTIFICATION, ...
 
 ## Requirements
 
@@ -14,7 +17,7 @@ numpy (tested: 1.19.4)
 scipy (tested: 1.1.0) 
 networkx (tested: 2.5)
 gensim (tested: 3.8.3)
-penman (tested: 1.1.0)
+smatchpp (tested: 0.1.0)
 pyemd (tested: 0.5.1)
 ```
 
@@ -23,8 +26,7 @@ pyemd (tested: 0.5.1)
 ### Basic Wasserstein AMR similarity
 
 ```
-cd src
-python main_wlk_wasser.py -a <amr_file> -b <amr_file>
+python src/main_wlk_wasser.py -a <amr_file> -b <amr_file>
 ```
 
 Note that the node labels will get initialized with GloVe vectors, 
@@ -34,17 +36,30 @@ it can take a minute to load them. If everything should be randomly intitialzed
 ### Return AMR n:m alignment:
 
 ```
-cd src
-python main_wlk_wasser.py -a <amr_file> -b <amr_file> -output_type score_alignment
+python src/main_wlk_wasser.py -a <amr_file> -b <amr_file> -output_type score_alignment
 ```
 
 This prints the scores and many-many node alignments, with flow and cost information. 
 
+### Return scores for sub-graph aspects (LOCATION, CAUSE, NER, ...):
+
+```
+python src/main_wlk_wasser.py -a <amr_file> -b <amr_file> --fine_grained_scores
+```
+
+This prints the scores and many-many node alignments, with flow and cost information. 
+
+### Asymmetric similarity
+
+Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
+
+- `-prs p' for precision-like sub-graph measure
+- `-prs r' for recall-like super-graph measure
+
 ### Learning edge weights
 
 ```
-cd src
-python main_wlk_wasser_optimized.py -a_train <amr_file> -b_train <amr_file> \
+python src/main_wlk_wasser_optimized.py -a_train <amr_file> -b_train <amr_file> \
                                     -a_dev <amr_file> -b_dev <amr_file> \
                                     -a_test <amr_file> -b_test <amr_file> \
                                     -y_train <target_file> -y_dev <target_file>
@@ -58,8 +73,7 @@ optimize the parameters. In the end the script will return predictions for
 ### Symbolic (Structural) AMR similarity
 
 ```
-cd src
-python main_wlk.py -a <amr_file> -b <amr_file>
+python src/main_wlk.py -a <amr_file> -b <amr_file>
 ```
 
 ## Notes
@@ -72,8 +86,7 @@ it can lead to some variation in the predictions. More stable results for WWLK a
 consider using the new `-stability_level` parameter, e.g.:
 
 ```
-cd src
-python main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
+python src/main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                           -stability_level 15
 ```
 
@@ -84,7 +97,7 @@ It computes an expected contextualized node distance matrix by repeated sampling
 Use `-stability_level` for increased stability when using wasser wlk (as above). And calculate a corpus score (currently, only output option is the mean over all scores). A good option for parsing evaluation may be:
 
 ```
-python -u main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
+python -u src/main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
                               -output_type score_corpus \
                               -stability_level 15 -k 3 \
                               -random_init_relation ones \
@@ -92,6 +105,8 @@ python -u main_wlk_wasser.py -a <amr_predicted> -b <amr_ref> \
 ```
 
 This also transforms the graphs to (equivalent) graphs with unlabeled edges (see below), and lets us set constant edge weights.
+
+Enable `--fine_grained_scores` to retrieve sub-aspect scores.
 
 ### Processing graphs other than AMR
 
@@ -113,13 +128,6 @@ This graph contains 3 nodes and 2 edges, all edges and nodes have labels. That's
 
 For convenience, score range is now in [-1, 1] for minimum similarity (-1) and maximum similarity (1).
 
-### Asymmetric similarity
-
-Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
-
-- `-prs p' for precision-like sub-graph measure
-- `-prs r' for recall-like super-graph measure
-
 ### Important Options
 
 Some important options that can be set according to use-case
@@ -134,27 +142,13 @@ Some important options that can be set according to use-case
 More options can be checked out:
 
 ```
-cd src
-python main_wlk_wasser.py --help
+python src/main_wlk_wasser.py --help
 ```
 
 ### Benchmarking
 
 Some scores on BAMBOO of current configurations: see `info/`
 
-Approx Processing TIME 1000 graph pairs: 
-
-| method | time (seconds) |
-|  ----  |  ------------- |
-| WLK    | 0.5            |
-| WWLK   | 5              |
-
-1000 graph pairs WWLK need 5 seconds
-
-## Version notes
-
-- 0.1: initial release
-- 0.2: speed increase by making better use of numpy, more stability by distance matrix sampling, labeled to unlabeld graph transform, refactored code
 
 ## Citation
 

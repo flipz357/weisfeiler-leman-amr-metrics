@@ -357,7 +357,10 @@ class NodeDistanceMatrixGenerator():
             self.param_keys = {}
             self.unk_edge = 0.2
         else:
-            self.unk_edge = np.random.rand(self.params.shape[1]) 
+            try:
+                self.unk_edge = np.random.rand(self.params.shape[1]) 
+            except IndexError:
+                self.unk_edge = np.random.rand(1)
         self.iters = iters
         self.communication_direction = communication_direction
         self.prs = prs
@@ -387,7 +390,7 @@ class NodeDistanceMatrixGenerator():
         e2, order2 = self.collect_graph_embed(a2)
         
         if self.iters > 0:
-            E1, E2 = self._WL_latent(a1, a2, iters=self.iters)
+            E1, E2 = self._WL_latent(a1, a2)
             E1 = np.concatenate([e1, E1], axis=1)
             E2 = np.concatenate([e2, E2], axis=1)
         else:
@@ -438,9 +441,15 @@ class NodeDistanceMatrixGenerator():
             - prior weights for nodes of B
             - cost matrix
         """
-
-        mat1 = mat1 / np.linalg.norm(mat1, axis=1)[:,None] 
-        mat2 = mat2 / np.linalg.norm(mat2, axis=1)[:,None]
+        
+        denom1 = np.linalg.norm(mat1, axis=1)[:,None] 
+        denom2 = np.linalg.norm(mat2, axis=1)[:,None]
+        
+        denom1 = np.where(denom1 != 0.0, denom1, 0.0001)
+        denom2 = np.where(denom2 != 0.0, denom2, 0.0001)
+        
+        mat1 = mat1 / denom1
+        mat2 = mat2 / denom2
         
         # construct prior weights of nodes... all are set equal here
         v1 = np.concatenate([np.ones(mat1.shape[0]), np.zeros(mat2.shape[0])])
@@ -503,6 +512,9 @@ class NodeDistanceMatrixGenerator():
         for node in nx_latent.nodes:
             vecs.append(nx_latent.nodes[node]["latent"])
             labels.append(node)
+        if not labels:
+            labels = ["null_graph"]
+            vecs.append(np.zeros(100))
         return np.array(vecs), labels
 
     def maybe_has_param(self, label):
@@ -592,9 +604,10 @@ class NodeDistanceMatrixGenerator():
         self._communicate(nx_g2_latent)
         mat1, _ = self.collect_graph_embed(nx_g1_latent)
         mat2, _ = self.collect_graph_embed(nx_g2_latent)
+
         return mat1, mat2
 
-    def _WL_latent(self, nx_g1_latent, nx_g2_latent, iters=2):
+    def _WL_latent(self, nx_g1_latent, nx_g2_latent):
         """apply K WL iteration and get node embeddings for two graphs A and B
 
         Args:
@@ -608,10 +621,11 @@ class NodeDistanceMatrixGenerator():
 
         v1s = []
         v2s = []
-        for _ in range(iters):
+        for _ in range(self.iters):
             x1_mat, x2_mat = self._wl_iter_latent(nx_g1_latent, nx_g2_latent)
             v1s.append(x1_mat)
             v2s.append(x2_mat)
+        
         g_embed1 = np.concatenate(v1s, axis=1)
         g_embed2 = np.concatenate(v2s, axis=1)
         return g_embed1, g_embed2
@@ -789,11 +803,15 @@ class WasserWLK(GraphSimilarityPredictorAligner):
             align_dict = {} 
             # project alignment to orig AMR graphs
             for j, label in enumerate(order1):
+                if label == "null_graph":
+                    break
                 align_dict[node2nodeorig_1[i][label]] = {}
                 cutv = len(order1)
                 row = flow[j][cutv:]
                 cost_row = dist_mat[j][cutv:]
                 for k, num in enumerate(row):
+                    if order2[k] == "null_graph":
+                        break
                     if num > 0.0:
                         varnode1 = node2nodeorig_1[i][label]
                         varnode2 = node2nodeorig_2[i][order2[k]]
