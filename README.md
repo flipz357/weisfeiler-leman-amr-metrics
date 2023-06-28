@@ -6,7 +6,7 @@ The repository contains python code for metrics of AMR graph similarity.
 
 **New in Version 0.3**: asymmetric Wasserstein graph measures as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available.
 
-**New in Version 0.4**: Reduced dependencies, sub-graph metrics for aspects including CAUSE, LOCATION, QUANTIFICATION, ...
+**New in Version 0.4**: Reduced dependencies, aspect measures for *cause, location, quantifier, ...*
 
 ## Requirements
 
@@ -41,20 +41,18 @@ python src/main_wlk_wasser.py -a <amr_file> -b <amr_file> -output_type score_ali
 
 This prints the scores and many-many node alignments, with flow and cost information. 
 
-### Return scores for sub-graph aspects (LOCATION, CAUSE, NER, ...):
+### Return scores for sub-graph aspects (location, cause, named entity, ...):
 
 ```
 python src/main_wlk_wasser.py -a <amr_file> -b <amr_file> --fine_grained_scores
 ```
 
-This prints the scores and many-many node alignments, with flow and cost information. 
-
 ### Asymmetric similarity
 
 Asymmetric wasserstein graph similarity (check if g1 is a subgraph of g2), as described in our [amr4nli paper](https://arxiv.org/abs/2306.00936) is now available with options:
 
-- `-prs p' for precision-like sub-graph measure
-- `-prs r' for recall-like super-graph measure
+- `-prs p` for precision-like sub-graph measure
+- `-prs r` for recall-like super-graph measure
 
 ### Learning edge weights
 
