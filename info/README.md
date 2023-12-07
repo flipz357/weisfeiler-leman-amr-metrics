@@ -1,4 +1,4 @@
-In the result table on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark), we used this commands (modify paths as needed):
+In the result table on [BAMBOO](https://github.com/flipz357/bamboo-amr-benchmark), we used this shell script commands (modify paths as needed):
 
 For WLK:
 
