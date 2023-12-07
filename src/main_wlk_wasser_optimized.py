@@ -144,14 +144,14 @@ if __name__ == "__main__":
     # if training and dev targets not exists then it is role confusion 
     # which means targets are 0, 1, 0, 1, 0, 1 ....
     if not args.y_train:
-        targets = [0.0, 1.0] * len(string_amrs1_train)
-        targets = targets[:len(string_amrs1_train)]
+        targets = [0.0, 1.0] * len(string_graphs1_train)
+        targets = targets[:len(string_graphs1_train)]
     else:
         targets = dh.read_score_file(args.y_train) 
    
     if not args.y_dev:
-        targets_dev = [0.0, 1.0] * len(string_amrs1_dev)
-        targets_dev = targets_dev[:len(string_amrs1_dev)]
+        targets_dev = [0.0, 1.0] * len(string_graphs1_dev)
+        targets_dev = targets_dev[:len(string_graphs1_dev)]
     else:
         targets_dev = dh.read_score_file(args.y_dev) 
     
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     optimizer = optim.SPSA(graphs1_train, graphs2_train, predictor
                             , targets, dev_graphs_a=graphs1_dev
                             , dev_graphs_b=graphs2_dev, targets_dev=targets_dev
-                            , init_lr=args.init_lr, eval_steps=100)
+                            , init_lr=args.init_lr, eval_steps=25)
     
     optimizer.fit()
     preds = predictor.predict(graphs1_test, graphs2_test)

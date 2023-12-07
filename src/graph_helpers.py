@@ -1,6 +1,7 @@
 import logging
 import networkx as nx
 from smatchpp.data_helpers import PenmanReader
+from smatchpp.preprocess import GenericStandardizer
 
 logger = logging.getLogger("penman")
 logger.setLevel(30)
@@ -26,15 +27,16 @@ class GraphParser():
 
         if self.input_format == "penman":
             pr = PenmanReader()
+            st = GenericStandardizer()
             tripless = [pr.string2graph(s) for s in string_graphs]
-            tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
+            tripless = [st.standardize(t) for t in tripless]
         
         if self.input_format == "tsv":
             tripless = [tsv2triples(s) for s in string_graphs]
             tripless = [maybe_fix_if_concept_node_same_as_var_node(triples) for triples in tripless]
         
         if self.remove_artificial_root:
-            tripless = [[triple for triple in triples if "ROOT_OF_GRAPH" not in triple] for triples in tripless]
+            tripless = [[triple for triple in triples if ":root" not in triple] for triples in tripless]
         
         if self.lower:
             tripless = [[(t[0].lower(), t[1].lower(), t[2].lower()) for t in triples] for triples in tripless]
@@ -146,8 +148,11 @@ def add_edges(G, triples, src_tgt_index_map):
     """
 
     for tr in triples:
-        src = src_tgt_index_map[tr[0]]
-        label = tr[1]
+        try:
+            src = src_tgt_index_map[tr[0]]
+            label = tr[1]
+        except KeyError:
+            continue
         try:
             tgt = src_tgt_index_map[tr[2]]
         except KeyError:

@@ -156,7 +156,7 @@ if __name__ == "__main__":
 
     else:
         try:
-            from smatchpp.subgraph_extraction import SubGraphExtractor
+            from smatchpp.subgraph_extraction import AMRSubGraphExtractor
         except ModuleNotFoundError:
             raise ModuleNotFoundError("For subgraph-extraction please install smatchpp: pip install smatchpp")
         

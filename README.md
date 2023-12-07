@@ -17,7 +17,7 @@ numpy (tested: 1.19.4)
 scipy (tested: 1.1.0) 
 networkx (tested: 2.5)
 gensim (tested: 3.8.3)
-smatchpp (tested: 0.1.0)
+smatchpp (tested: 1.5.1)
 pyemd (tested: 0.5.1)
 ```
 
